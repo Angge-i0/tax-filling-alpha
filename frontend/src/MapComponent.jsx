@@ -17,7 +17,8 @@ function MapContent({ geoData, error, onFeatureSelect, selectedFeature, isCad, l
   useEffect(() => {
     if (geoData && geoJsonRef.current) {
       const bounds = geoJsonRef.current.getBounds()
-      map.fitBounds(bounds)
+      // Use fitBounds with instant animation (duration: 0) for seamless transition
+      map.fitBounds(bounds, { duration: 0, padding: [10, 10] })
     }
   }, [geoData, map, layerKey])
 

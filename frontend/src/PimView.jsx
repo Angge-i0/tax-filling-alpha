@@ -2,6 +2,16 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiGet, getAccessToken, clearTokens } from './api';
 import MapComponent from './MapComponent';
 
+// Complete list of all barangays in San Pascual
+const ALL_BARANGAYS = [
+    'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
+    'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
+    'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
+    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
+    'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
+    'San Mariano', 'San Mateo', 'Santa Elena', 'Santo Niño'
+];
+
 export default function PimView({ isStaff, geoData }) {
     // Navigation State
     const [barangayList, setBarangayList] = useState([]);
@@ -23,6 +33,13 @@ export default function PimView({ isStaff, geoData }) {
     // Base map bounds reference
     const [mapCenter, setMapCenter] = useState([13.79, 121.0]);
 
+    // Caching and Loading States
+    const barangayDataCache = useRef({});
+    const sectionListCache = useRef({});
+    const lotDataCache = useRef({});
+    const [isLoadingBarangay, setIsLoadingBarangay] = useState(false);
+    const [isLoadingSection, setIsLoadingSection] = useState(false);
+
     // Load Barangay List on Mount
     useEffect(() => {
         apiGet('/api/pim/barangays/')
@@ -30,7 +47,21 @@ export default function PimView({ isStaff, geoData }) {
                 if (res.status === 401) throw new Error('Session expired');
                 return res.json();
             })
-            .then(data => setBarangayList(data.barangays || []))
+            .then(data => {
+                const pimBarangays = data.barangays || [];
+
+                // Create a complete list with all barangays
+                const completeList = ALL_BARANGAYS.map(name => {
+                    const pimData = pimBarangays.find(b => b.name === name);
+                    return {
+                        name: name,
+                        has_data: pimData ? pimData.has_data : false,
+                        section_count: pimData ? pimData.section_count : 0
+                    };
+                });
+
+                setBarangayList(completeList);
+            })
             .catch(err => setError(String(err)));
     }, []);
 
@@ -40,28 +71,57 @@ export default function PimView({ isStaff, geoData }) {
             setBarangayGeoData(null);
             setSectionList([]);
             setSectionGeoData(null);
+            setError(null); // Clear error when deselecting
             return;
         }
 
-        // Load dissolved section polygons (Barangay view)
-        apiGet(`/api/pim/barangays/${selectedBarangay}/geojson/`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                setBarangayGeoData(data);
-                setSectionGeoData(null);
-                setLotGeoData(null);
-                setSelectedSection(null);
-                setSelectedLot(null);
-                setShowEnlargementMap(false);
-            })
-            .catch(err => setError(String(err)));
+        // Clear error when switching to a new barangay
+        setError(null);
 
-        // Load section list metadata
-        apiGet(`/api/pim/barangays/${selectedBarangay}/sections/`)
-            .then(res => res.json())
-            .then(data => setSectionList(data.sections || []))
-            .catch(err => console.error(err));
+        // Check cache first
+        if (barangayDataCache.current[selectedBarangay]) {
+            setBarangayGeoData(barangayDataCache.current[selectedBarangay]);
+            setSectionGeoData(null);
+            setLotGeoData(null);
+            setSelectedSection(null);
+            setSelectedLot(null);
+            setShowEnlargementMap(false);
+        } else {
+            setIsLoadingBarangay(true);
+            // Load dissolved section polygons (Barangay view)
+            apiGet(`/api/pim/barangays/${selectedBarangay}/geojson/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    // Cache the data
+                    barangayDataCache.current[selectedBarangay] = data;
+                    setBarangayGeoData(data);
+                    setSectionGeoData(null);
+                    setLotGeoData(null);
+                    setSelectedSection(null);
+                    setSelectedLot(null);
+                    setShowEnlargementMap(false);
+                    setIsLoadingBarangay(false);
+                })
+                .catch(err => {
+                    setError(String(err));
+                    setIsLoadingBarangay(false);
+                });
+        }
+
+        // Load section list metadata (with caching)
+        if (sectionListCache.current[selectedBarangay]) {
+            setSectionList(sectionListCache.current[selectedBarangay]);
+        } else {
+            apiGet(`/api/pim/barangays/${selectedBarangay}/sections/`)
+                .then(res => res.json())
+                .then(data => {
+                    const sections = data.sections || [];
+                    sectionListCache.current[selectedBarangay] = sections;
+                    setSectionList(sections);
+                })
+                .catch(err => console.error(err));
+        }
     }, [selectedBarangay]);
 
     // When a Section is selected
@@ -72,16 +132,35 @@ export default function PimView({ isStaff, geoData }) {
             return;
         }
 
-        // Load lots for this section
-        apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${selectedSection}/lots/`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) throw new Error(data.error);
-                setLotGeoData(data);
-                setSelectedLot(null);
-                setShowEnlargementMap(false);
-            })
-            .catch(err => setError(String(err)));
+        // Clear error when selecting a section
+        setError(null);
+
+        const cacheKey = `${selectedBarangay}-${selectedSection}`;
+
+        // Check cache first
+        if (lotDataCache.current[cacheKey]) {
+            setLotGeoData(lotDataCache.current[cacheKey]);
+            setSelectedLot(null);
+            setShowEnlargementMap(false);
+        } else {
+            setIsLoadingSection(true);
+            // Load lots for this section
+            apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${selectedSection}/lots/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) throw new Error(data.error);
+                    // Cache the data
+                    lotDataCache.current[cacheKey] = data;
+                    setLotGeoData(data);
+                    setSelectedLot(null);
+                    setShowEnlargementMap(false);
+                    setIsLoadingSection(false);
+                })
+                .catch(err => {
+                    setError(String(err));
+                    setIsLoadingSection(false);
+                });
+        }
 
     }, [selectedSection, selectedBarangay]);
 
@@ -106,6 +185,10 @@ export default function PimView({ isStaff, geoData }) {
         if (feature.properties.ADM4_EN && !selectedBarangay) {
             setSelectedBarangay(feature.properties.ADM4_EN);
         }
+        // Background map click - switch to different barangay
+        else if (feature.properties.ADM4_EN && selectedBarangay && feature.properties.ADM4_EN !== selectedBarangay) {
+            setSelectedBarangay(feature.properties.ADM4_EN);
+        }
         // We are looking at Barangay Level (seeing sections)
         else if (feature.properties.hasOwnProperty('section_number') && !feature.properties.hasOwnProperty('PIN') && !feature.properties.hasOwnProperty('pin')) {
             setSelectedSection(feature.properties.section_number);
@@ -116,37 +199,44 @@ export default function PimView({ isStaff, geoData }) {
         }
     };
 
-    // Determine which data to feed to MapComponent
-    let activeGeoData = null;
-    let backgroundGeoData = null;
-    let activeLayerKey = 'loading';
+    // Determine which data to feed to MapComponent (memoized for performance)
+    const { activeGeoData, backgroundGeoData, activeLayerKey, activeFeature } = useMemo(() => {
+        let geoData_active = null;
+        let geoData_background = null;
+        let layerKey = 'loading';
 
-    if (!selectedBarangay) {
-        // Top-level municipality view
-        activeGeoData = geoData;
-        backgroundGeoData = null;
-        activeLayerKey = 'municipality';
-    } else {
-        // A barangay is selected!
-        backgroundGeoData = geoData; // Always show municipality as grey backdrop
-
-        if (showEnlargementMap && enlargementData) {
-            activeGeoData = enlargementData;
-            activeLayerKey = 'enlargement';
-        } else if (selectedSection && lotGeoData) {
-            activeGeoData = lotGeoData;
-            activeLayerKey = 'section-' + selectedSection;
-        } else if (barangayGeoData) {
-            activeGeoData = barangayGeoData;
-            activeLayerKey = 'barangay-' + selectedBarangay;
+        if (!selectedBarangay) {
+            // Top-level municipality view
+            geoData_active = geoData;
+            geoData_background = null;
+            layerKey = 'municipality';
         } else {
-            // Data is either still loading, or this barangay has no sections yet.
-            activeGeoData = null;
-            activeLayerKey = 'empty-or-loading';
-        }
-    }
+            // A barangay is selected!
+            geoData_background = geoData; // Always show municipality as grey backdrop
 
-    const activeFeature = selectedLot || null;
+            if (showEnlargementMap && enlargementData) {
+                geoData_active = enlargementData;
+                layerKey = 'enlargement';
+            } else if (selectedSection && lotGeoData) {
+                geoData_active = lotGeoData;
+                layerKey = 'section-' + selectedSection;
+            } else if (barangayGeoData) {
+                geoData_active = barangayGeoData;
+                layerKey = 'barangay-' + selectedBarangay;
+            } else {
+                // Data is either still loading, or this barangay has no sections yet.
+                geoData_active = null;
+                layerKey = 'empty-or-loading';
+            }
+        }
+
+        return {
+            activeGeoData: geoData_active,
+            backgroundGeoData: geoData_background,
+            activeLayerKey: layerKey,
+            activeFeature: selectedLot || null
+        };
+    }, [selectedBarangay, selectedSection, barangayGeoData, lotGeoData, enlargementData, showEnlargementMap, selectedLot, geoData]);
 
     // --- Computation Engine ---
     const safeNum = (val) => {
@@ -210,7 +300,11 @@ export default function PimView({ isStaff, geoData }) {
                             }}
                         >
                             <div style={{ fontWeight: 'bold', color: '#1e3a5f' }}>{b.name}</div>
-                            <div style={{ fontSize: '0.8em', color: '#64748b' }}>{b.section_count} sections</div>
+                            {b.has_data ? (
+                                <div style={{ fontSize: '0.8em', color: '#64748b' }}>{b.section_count} sections</div>
+                            ) : (
+                                <div style={{ fontSize: '0.8em', color: '#ef4444', fontStyle: 'italic' }}>⚠ Does not contain data</div>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -222,6 +316,7 @@ export default function PimView({ isStaff, geoData }) {
                     <h2 className="pim-view-title" style={{ margin: 0 }}>
                         PIM VIEW {selectedBarangay ? `— ${selectedBarangay}` : ''} {selectedSection ? `(Section ${selectedSection})` : ''}
                         {showEnlargementMap ? ' [ENLARGEMENT]' : ''}
+                        {isLoadingBarangay && <span style={{ fontSize: '0.7em', color: '#3b82f6', marginLeft: '10px' }}>Loading...</span>}
                     </h2>
 
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -252,7 +347,17 @@ export default function PimView({ isStaff, geoData }) {
                     </div>
                 </div>
 
-                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)' }}>
+                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)', position: 'relative' }}>
+                    {(isLoadingBarangay || isLoadingSection) && (
+                        <div style={{
+                            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                            zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '20px 40px',
+                            borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            fontSize: '1.1em', fontWeight: 'bold', color: '#1e3a5f'
+                        }}>
+                            Loading map data...
+                        </div>
+                    )}
                     <MapComponent
                         geoData={activeGeoData}
                         error={error}
@@ -322,7 +427,9 @@ export default function PimView({ isStaff, geoData }) {
                         ) : (
                             <div className="section-lots-list">
                                 <h3 style={{ margin: '0 0 15px 0', color: '#0f1d35' }}>Section {selectedSection} Lots</h3>
-                                {lotGeoData && lotGeoData.features && lotGeoData.features.length > 0 ? (
+                                {isLoadingSection ? (
+                                    <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>Loading lots...</div>
+                                ) : lotGeoData && lotGeoData.features && lotGeoData.features.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                         {lotGeoData.features.map((f, i) => (
                                             <button
@@ -339,7 +446,7 @@ export default function PimView({ isStaff, geoData }) {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div style={{ color: '#64748b', fontStyle: 'italic' }}>Loading lots...</div>
+                                    <div style={{ color: '#64748b', fontStyle: 'italic' }}>No lots available</div>
                                 )}
                             </div>
                         )}
@@ -347,24 +454,47 @@ export default function PimView({ isStaff, geoData }) {
                 ) : selectedBarangay ? (
                     <>
                         <h3 style={{ margin: '0 0 15px 0', color: '#0f1d35' }}>{selectedBarangay} Sections</h3>
-                        <p style={{ fontSize: '0.85em', color: '#64748b' }}>Click a section on the map to view lots.</p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            {sectionList.map(s => (
-                                <button
-                                    key={s.number}
-                                    onClick={() => setSelectedSection(s.number)}
-                                    style={{
-                                        textAlign: 'left', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px',
-                                        background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between'
-                                    }}
-                                >
-                                    <span style={{ fontWeight: 'bold', color: '#1e3a5f' }}>Section {s.number}</span>
-                                    <span style={{ fontSize: '0.85em', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '10px' }}>
-                                        {s.lot_count} lots
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+                        {isLoadingBarangay ? (
+                            <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>Loading sections...</div>
+                        ) : sectionList.length === 0 ? (
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '40px 20px',
+                                textAlign: 'center',
+                                color: '#ef4444'
+                            }}>
+                                <div style={{ fontSize: '3em', marginBottom: '15px' }}>⚠️</div>
+                                <div style={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '8px' }}>Error</div>
+                                <div style={{ fontSize: '0.9em', fontStyle: 'italic' }}>Does not contain data</div>
+                                <div style={{ fontSize: '0.75em', color: '#94a3b8', marginTop: '15px', lineHeight: '1.5' }}>
+                                    This barangay does not have PIM data available yet.
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                <p style={{ fontSize: '0.85em', color: '#64748b' }}>Click a section on the map to view lots.</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                    {sectionList.map(s => (
+                                        <button
+                                            key={s.number}
+                                            onClick={() => setSelectedSection(s.number)}
+                                            style={{
+                                                textAlign: 'left', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px',
+                                                background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between'
+                                            }}
+                                        >
+                                            <span style={{ fontWeight: 'bold', color: '#1e3a5f' }}>Section {s.number}</span>
+                                            <span style={{ fontSize: '0.85em', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '10px' }}>
+                                                {s.lot_count} lots
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </>
                 ) : (
                     <div className="empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8' }}>
