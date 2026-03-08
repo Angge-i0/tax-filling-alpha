@@ -9,6 +9,7 @@ import FAQs from './FAQs'
 import AboutCredits from './AboutCredits'
 import MapComponent from './MapComponent'
 import Header from './Header'
+import PimView from './PimView';
 import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToken } from './api'
 import gadcSidebarLogo from './assets/GADC SIDEBAR.png'
 import './App.css'
@@ -238,76 +239,7 @@ function App() {
       case 'user-management':
         return isStaff ? <AdminDashboard username={user} onLogout={handleLogout} /> : <UserDashboard />
       case 'map-pim':
-        return (
-          <div className="pim-layout">
-            <div className="pim-map-area">
-              <h2 className="pim-view-title">PIM VIEW — SAN PASCUAL, BATANGAS</h2>
-              <div className="map-view">
-                <MapComponent
-                  geoData={geoData}
-                  error={error}
-                  onFeatureSelect={setSelectedFeature}
-                  selectedFeature={selectedFeature}
-                />
-              </div>
-            </div>
-            <div className="pim-details">
-              {selectedFeature ? (
-                <>
-                  <div className="pim-field-group">
-                    <label>MUNICIPALITY</label>
-                    <div className="pim-field-value">San Pascual, Batangas</div>
-                  </div>
-                  <div className="pim-field-group">
-                    <label>SELECTED BARANGAY</label>
-                    <div className="pim-field-value">{selectedFeature.properties.ADM4_EN || 'Unknown'}</div>
-                  </div>
-                  <div className="pim-field-group">
-                    <label>BARANGAY</label>
-                    <div className="pim-field-value">{selectedFeature.properties.ADM4_EN || 'N/A'}</div>
-                  </div>
-                  {isStaff && (
-                    <>
-                      <div className="pim-field-group">
-                        <label>AREA</label>
-                        <div className="pim-field-value">
-                          {selectedFeature.properties.AREA_SQKM
-                            ? `${selectedFeature.properties.AREA_SQKM.toFixed(2)} km²`
-                            : 'N/A'}
-                        </div>
-                      </div>
-                      <div className="pim-field-group">
-                        <label>POPULATION (2020)</label>
-                        <div className="pim-field-value">
-                          {selectedFeature.properties['nasugbu_population_2020_cleaned_Population (2020)']?.toLocaleString() || 'N/A'}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  <div className="action-text" style={{ borderBottom: '2px solid #1e3a5f', marginTop: '20px', marginBottom: '10px' }}>
-                    ALL DATA FIELDS
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {Object.entries(selectedFeature.properties).map(([key, value]) => (
-                      <div key={key} style={{
-                        fontSize: '0.82em', display: 'flex', justifyContent: 'space-between',
-                        padding: '3px 0', borderBottom: '1px solid #eee'
-                      }}>
-                        <span style={{ fontWeight: '600', color: '#555' }}>{key.replace(/_/g, ' ')}:</span>
-                        <span style={{ textAlign: 'right', color: '#333' }}>{String(value ?? 'N/A')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="empty-state">
-                  <div style={{ fontSize: '3em', marginBottom: '10px' }}>🗺️</div>
-                  <p>Select a boundary on the map to view details.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )
+        return <PimView isStaff={isStaff} geoData={geoData} />
       case 'map-cad':
         return (
           <CadMap

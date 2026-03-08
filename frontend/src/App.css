@@ -1337,6 +1337,24 @@ body {
   text-align: center;
 }
 
+.map-view .leaflet-tile-pane {
+  transition: filter 0.3s ease;
+}
+
+.map-view[data-blurred="true"] .leaflet-tile-pane {
+  filter: blur(2px) brightness(0.6);
+}
+
+.section-tooltip {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #1e3a5f;
+  border-radius: 4px;
+  color: #1e3a5f;
+  font-weight: bold;
+  padding: 4px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
 /* ════════════════════════════════════════
    CAD MAP
    ════════════════════════════════════════ */

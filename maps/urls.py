@@ -4,6 +4,10 @@ from .views import (
     dashboard_issues, mark_issue_solved, barangay_list,
     barangay_sections, section_lots,
 )
+from .pim_views import (
+    pim_barangay_list, pim_barangay_geojson, pim_section_list,
+    pim_section_lots_geojson, pim_enlargement_geojson
+)
 
 urlpatterns = [
     path('api/geojson/', geojson_data),
@@ -15,4 +19,11 @@ urlpatterns = [
     path('api/barangays/', barangay_list, name='barangay_list'),
     path('api/barangays/<int:barangay_id>/sections/', barangay_sections, name='barangay_sections'),
     path('api/sections/<int:section_id>/lots/', section_lots, name='section_lots'),
+    
+    # ── New Folder-Based PIM API Routes ──
+    path('api/pim/barangays/', pim_barangay_list, name='pim_barangay_list'),
+    path('api/pim/barangays/<str:barangay_name>/geojson/', pim_barangay_geojson, name='pim_barangay_geojson'),
+    path('api/pim/barangays/<str:barangay_name>/sections/', pim_section_list, name='pim_section_list'),
+    path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/lots/', pim_section_lots_geojson, name='pim_section_lots_geojson'),
+    path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/enlargement/', pim_enlargement_geojson, name='pim_enlargement_geojson'),
 ]
