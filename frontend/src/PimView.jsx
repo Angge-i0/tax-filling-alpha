@@ -78,15 +78,18 @@ export default function PimView({ isStaff, geoData }) {
         // Clear error when switching to a new barangay
         setError(null);
 
+        // Clear previous data immediately for instant visual feedback
+        setSectionGeoData(null);
+        setLotGeoData(null);
+        setShowEnlargementMap(false);
+
         // Check cache first
         if (barangayDataCache.current[selectedBarangay]) {
+            // Load from cache instantly
             setBarangayGeoData(barangayDataCache.current[selectedBarangay]);
-            setSectionGeoData(null);
-            setLotGeoData(null);
-            setSelectedSection(null);
-            setSelectedLot(null);
-            setShowEnlargementMap(false);
         } else {
+            // Clear old barangay data while loading new one
+            setBarangayGeoData(null);
             setIsLoadingBarangay(true);
             // Load dissolved section polygons (Barangay view)
             apiGet(`/api/pim/barangays/${selectedBarangay}/geojson/`)
@@ -96,11 +99,6 @@ export default function PimView({ isStaff, geoData }) {
                     // Cache the data
                     barangayDataCache.current[selectedBarangay] = data;
                     setBarangayGeoData(data);
-                    setSectionGeoData(null);
-                    setLotGeoData(null);
-                    setSelectedSection(null);
-                    setSelectedLot(null);
-                    setShowEnlargementMap(false);
                     setIsLoadingBarangay(false);
                 })
                 .catch(err => {
@@ -187,6 +185,9 @@ export default function PimView({ isStaff, geoData }) {
         }
         // Background map click - switch to different barangay
         else if (feature.properties.ADM4_EN && selectedBarangay && feature.properties.ADM4_EN !== selectedBarangay) {
+            // Reset section and lot when switching barangays
+            setSelectedSection(null);
+            setSelectedLot(null);
             setSelectedBarangay(feature.properties.ADM4_EN);
         }
         // We are looking at Barangay Level (seeing sections)
@@ -199,44 +200,47 @@ export default function PimView({ isStaff, geoData }) {
         }
     };
 
-    // Determine which data to feed to MapComponent (memoized for performance)
-    const { activeGeoData, backgroundGeoData, activeLayerKey, activeFeature } = useMemo(() => {
-        let geoData_active = null;
-        let geoData_background = null;
-        let layerKey = 'loading';
+    // Determine which data to feed to MapComponent
+    let activeGeoData = null;
+    let backgroundGeoData = null;
+    let activeLayerKey = 'loading';
 
-        if (!selectedBarangay) {
-            // Top-level municipality view
-            geoData_active = geoData;
-            geoData_background = null;
-            layerKey = 'municipality';
+    if (!selectedBarangay) {
+        // Top-level municipality view
+        activeGeoData = geoData;
+        backgroundGeoData = null;
+        activeLayerKey = 'municipality';
+    } else {
+        // A barangay is selected!
+        backgroundGeoData = geoData; // Always show municipality as grey backdrop
+
+        if (showEnlargementMap && enlargementData) {
+            activeGeoData = enlargementData;
+            activeLayerKey = 'enlargement';
+        } else if (selectedSection && lotGeoData) {
+            // Section is selected and lot data is loaded
+            activeGeoData = lotGeoData;
+            activeLayerKey = 'section-' + selectedSection;
+        } else if (selectedSection && isLoadingSection) {
+            // Section is selected but lots are still loading - keep showing barangay view
+            activeGeoData = barangayGeoData;
+            activeLayerKey = 'barangay-' + selectedBarangay + '-loading';
+        } else if (selectedSection && !lotGeoData) {
+            // Section is selected but no lot data (error or empty) - show barangay view
+            activeGeoData = barangayGeoData;
+            activeLayerKey = 'barangay-' + selectedBarangay;
+        } else if (barangayGeoData) {
+            // Just barangay view
+            activeGeoData = barangayGeoData;
+            activeLayerKey = 'barangay-' + selectedBarangay;
         } else {
-            // A barangay is selected!
-            geoData_background = geoData; // Always show municipality as grey backdrop
-
-            if (showEnlargementMap && enlargementData) {
-                geoData_active = enlargementData;
-                layerKey = 'enlargement';
-            } else if (selectedSection && lotGeoData) {
-                geoData_active = lotGeoData;
-                layerKey = 'section-' + selectedSection;
-            } else if (barangayGeoData) {
-                geoData_active = barangayGeoData;
-                layerKey = 'barangay-' + selectedBarangay;
-            } else {
-                // Data is either still loading, or this barangay has no sections yet.
-                geoData_active = null;
-                layerKey = 'empty-or-loading';
-            }
+            // Data is either still loading, or this barangay has no sections yet.
+            activeGeoData = null;
+            activeLayerKey = 'empty-or-loading';
         }
+    }
 
-        return {
-            activeGeoData: geoData_active,
-            backgroundGeoData: geoData_background,
-            activeLayerKey: layerKey,
-            activeFeature: selectedLot || null
-        };
-    }, [selectedBarangay, selectedSection, barangayGeoData, lotGeoData, enlargementData, showEnlargementMap, selectedLot, geoData]);
+    const activeFeature = selectedLot || null;
 
     // --- Computation Engine ---
     const safeNum = (val) => {
