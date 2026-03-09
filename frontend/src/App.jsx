@@ -10,9 +10,11 @@ import AboutCredits from './AboutCredits'
 import MapComponent from './MapComponent'
 import Header from './Header'
 import PimView from './PimView';
+import Maintenance from './Maintenance';
 import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToken } from './api'
 import gadcSidebarLogo from './assets/GADC SIDEBAR.png'
 import './App.css'
+import ErrorBoundary from './ErrorBoundary'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(null)
@@ -139,8 +141,8 @@ function App() {
   // Fetch CAD GeoJSON when navigating to CAD
   useEffect(() => {
     if (!isAuthenticated || activePage !== 'map-cad') return
-    if (cadGeoData) return // already loaded
 
+    setCadGeoData(null) // clear old data to force fresh load
     apiGet('/api/cad/geojson/')
       .then(res => {
         if (res.status === 401) {
@@ -149,9 +151,13 @@ function App() {
           setUser(null)
           throw new Error('Session expired.')
         }
+        if (!res.ok) throw new Error(`Server responded ${res.status}`)
         return res.json()
       })
-      .then(data => setCadGeoData(data))
+      .then(data => {
+        console.log('CAD data loaded:', data?.features?.length, 'features')
+        setCadGeoData(data)
+      })
       .catch(err => {
         console.error('Failed to load CAD geojson:', err)
         setError(err.message || String(err))
@@ -249,13 +255,7 @@ function App() {
           />
         )
       case 'maintenance':
-        return (
-          <div className="placeholder-page">
-            <div style={{ fontSize: '4em', marginBottom: '16px' }}>⚙️</div>
-            <h2>Maintenance</h2>
-            <p>System maintenance features will be available here.</p>
-          </div>
-        )
+        return isStaff ? <Maintenance /> : <UserDashboard />
       case 'faqs':
         return <FAQs />
       case 'about':
@@ -375,7 +375,9 @@ function App() {
         </div>
         {/* Content */}
         <div className="content-container" style={{ overflowY: 'auto' }}>
-          {renderPage()}
+          <ErrorBoundary>
+            {renderPage()}
+          </ErrorBoundary>
         </div>
 
         {/* Structural Footer */}
@@ -409,20 +411,34 @@ const CAD_LEGEND = [
 
 function CadMap({ geoData, error, isStaff }) {
   const [selectedBarangay, setSelectedBarangay] = useState(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
+
+  const handleSelect = (feature) => {
+    if (!feature) return;
+    const name = feature.properties?.ADM4_EN;
+    setSelectedBarangay(name);
+    setSelectedFeature(feature);
+  };
+
+  const handleLegendClick = (name) => {
+    if (!geoData) return;
+    const feature = geoData.features.find(f => f.properties?.ADM4_EN === name);
+    if (feature) handleSelect(feature);
+  };
 
   return (
     <div className="cad-page">
-      <h2 className="cad-title">CAD MAP OVERVIEW — BARANGAYS OF SAN PASCUAL, BATANGAS</h2>
       <div className="cad-layout">
         <div className="cad-map-area">
           <div className="map-view">
             <MapComponent
               geoData={geoData}
               error={error}
-              onFeatureSelect={(f) => setSelectedBarangay(f.properties.ADM4_EN)}
-              selectedFeature={null} // We don't need highighting for CAD yet, but could add
+              onFeatureSelect={handleSelect}
+              selectedFeature={selectedFeature}
               isCad={true}
               legend={CAD_LEGEND}
+              isStatic={true}
             />
           </div>
         </div>
@@ -432,8 +448,16 @@ function CadMap({ geoData, error, isStaff }) {
             {CAD_LEGEND.map(b => (
               <div
                 key={b.name}
+                onClick={() => handleLegendClick(b.name)}
                 className={`cad-legend-item ${selectedBarangay === b.name ? 'active' : ''}`}
-                style={{ fontWeight: selectedBarangay === b.name ? '800' : 'normal' }}
+                style={{ 
+                  fontWeight: selectedBarangay === b.name ? '800' : 'normal',
+                  cursor: 'pointer',
+                  padding: '2px 3px',
+                  borderRadius: '3px',
+                  background: selectedBarangay === b.name ? '#e0e7ff' : 'transparent',
+                  color: selectedBarangay === b.name ? '#1e3a5f' : undefined,
+                }}
               >
                 <div className="cad-color-swatch" style={{ backgroundColor: b.color }} />
                 <span>{b.name}</span>

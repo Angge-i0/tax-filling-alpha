@@ -70,8 +70,8 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
     setError(null);
     setSuccess(null);
     setStatusData(null);
-    // If switching to admin, force login view (admins can't sign up)
-    if (r === 'admin') setView('login');
+    // Admins can now sign up
+    // if (r === 'admin') setView('login');
   };
   const switchView = (v) => { setView(v); setError(null); setSuccess(null); setStatusData(null); };
 
@@ -541,12 +541,10 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
 
           {/* Switch between Login / Sign Up */}
           <p className="lp-switch">
-            {(view === 'login' && role !== 'admin') ? (
+            {view === 'login' ? (
               <>Don't have an account?{' '}
                 <button type="button" onClick={() => switchView('signup')}>Sign up</button>
               </>
-            ) : (view === 'login' && role === 'admin') ? (
-              <span style={{ color: '#94a3b8', fontSize: '0.85em' }}>Administrator access only</span>
             ) : view === 'signup' ? (
               <>Already have an account?{' '}
                 <button type="button" onClick={() => switchView('login')}>Log in</button>

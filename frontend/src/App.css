@@ -1361,30 +1361,37 @@ body {
 
 .cad-page {
   animation: fadeInPage 0.3s ease;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .cad-title {
   font-size: 1.1em;
   font-weight: 800;
   color: #0f1d35;
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
 }
 
 .cad-layout {
   display: flex;
-  gap: 24px;
+  gap: 16px;
   flex: 1;
+  min-height: 0;
 }
 
 .cad-map-area {
   flex: 1;
-  background: #0f1d35;
   border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 500px;
-  padding: 32px;
+  overflow: hidden;
+  position: relative;
+  min-height: 0;
+}
+
+.map-view {
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 .cad-notice {
@@ -1400,19 +1407,19 @@ body {
 }
 
 .cad-legend {
-  width: 340px;
+  width: 280px;
+  flex-shrink: 0;
   background: #ffffff;
   border-radius: 12px;
-  padding: 24px;
-  overflow-y: auto;
+  padding: 14px 16px;
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
 }
 
 .cad-legend h3 {
-  font-size: 1em;
+  font-size: 0.85em;
   font-weight: 800;
   color: #0f1d35;
-  margin: 0 0 16px 0;
+  margin: 0 0 8px 0;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
@@ -1420,23 +1427,25 @@ body {
 .cad-legend-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 3px 6px;
 }
 
 .cad-legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.82em;
+  gap: 6px;
+  font-size: 0.78em;
   color: #334155;
+  line-height: 1.1;
 }
 
 .cad-color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
+
 
 /* ════════════════════════════════════════
    FAQs  (FAQs.jsx)

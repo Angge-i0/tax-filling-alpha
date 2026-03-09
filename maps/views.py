@@ -110,24 +110,71 @@ def geojson_data(request):
 @api_login_required
 def cad_geojson_data(request):
     """
-    Read sanpascual.gpkg and return it as GeoJSON.
-    Uses GeoPandas for conversion.
+    Collects all GPKG files from maps/static/CAD/, dissolves each into a single
+    barangay polygon, and returns the combined GeoJSON for the CAD Overview.
     """
-    file_path = os.path.join(settings.BASE_DIR, 'maps/static/CAD/sanpascual.gpkg')
+    cad_dir = os.path.join(settings.BASE_DIR, 'maps/static/CAD')
     
-    if not os.path.exists(file_path):
-        return JsonResponse({'error': 'CAD file not found.'}, status=404)
+    if not os.path.exists(cad_dir):
+        return JsonResponse({'error': 'CAD directory not found.'}, status=404)
         
     try:
-        # Use pyogrio engine for better performance with .gpkg
-        gdf = gpd.read_file(file_path, engine='pyogrio')
+        gpkg_files = [f for f in os.listdir(cad_dir) if f.lower().endswith('.gpkg')]
+        if not gpkg_files:
+            return JsonResponse({'error': 'No CAD files found.'}, status=404)
+
+        all_gdfs = []
+        NAME_MAP = {
+            'Sta. Elena': 'Santa Elena',
+            'Sta Elena': 'Santa Elena',
+            'Sto. Nino': 'Santo Niño',
+            'Sto Nino': 'Santo Niño',
+            'Ilat': 'Ilat North',
+            'PADRE CASTILLO': 'Padre Castillo',
+            'Brgy San Antonio': 'San Antonio',
+            'San mateo': 'San Mateo',
+        }
+
+        for filename in gpkg_files:
+            file_path = os.path.join(cad_dir, filename)
+            try:
+                gdf = gpd.read_file(file_path, engine='pyogrio')
+                if gdf.empty:
+                    continue
+                
+                # Assign Barangay name from filename if column missing
+                base_name = os.path.splitext(filename)[0]
+                brgy_name = NAME_MAP.get(base_name, base_name)
+                
+                # Clean up name
+                brgy_name = brgy_name.replace('Brgy ', '').replace('Brgy. ', '').strip()
+                if brgy_name.isupper():
+                    brgy_name = brgy_name.title()
+
+                if 'ADM4_EN' not in gdf.columns:
+                    gdf['ADM4_EN'] = brgy_name
+                
+                # Fix topology and reproject
+                gdf.geometry = gdf.geometry.buffer(0)
+                if gdf.crs is None:
+                    gdf.set_crs('EPSG:3123', inplace=True)
+                gdf = gdf.to_crs('EPSG:4326')
+                
+                # Dissolve into a single boundary for the overview
+                dissolved = gdf.dissolve(by='ADM4_EN').reset_index()
+                all_gdfs.append(dissolved[['ADM4_EN', 'geometry']])
+            except Exception as e:
+                print(f"Error processing CAD file {filename}: {e}")
+
+        if not all_gdfs:
+            return JsonResponse({'error': 'Failed to process any CAD data.'}, status=500)
+
+        combined = gpd.GeoDataFrame(pd.concat(all_gdfs, ignore_index=True))
+        combined.set_crs('EPSG:4326', inplace=True)
         
-        # Ensure we only send necessary properties to keep response size manageable
-        # ADM4_EN is the Barangay name
-        data = json.loads(gdf.to_json())
-        return JsonResponse(data)
+        return JsonResponse(json.loads(combined.to_json()))
     except Exception as e:
-        return JsonResponse({'error': f'Failed to process CAD data: {str(e)}'}, status=500)
+        return JsonResponse({'error': f'CAD processing failed: {str(e)}'}, status=500)
 
 
 # ── Dashboard API Views ────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ export default function PimView({ isStaff, geoData }) {
     const [sectionList, setSectionList] = useState([]);
     const [error, setError] = useState(null);
     const [showEnlargementMap, setShowEnlargementMap] = useState(false);
+    const [refinementLevel, setRefinementLevel] = useState(0.75);
 
     // Base map bounds reference
     const [mapCenter, setMapCenter] = useState([13.79, 121.0]);
@@ -124,7 +125,7 @@ export default function PimView({ isStaff, geoData }) {
 
     // When a Section is selected
     useEffect(() => {
-        if (!selectedSection || !selectedBarangay) {
+        if (selectedSection === null || !selectedBarangay) {
             setSectionGeoData(null);
             setLotGeoData(null);
             return;
@@ -133,13 +134,15 @@ export default function PimView({ isStaff, geoData }) {
         // Clear error when selecting a section
         setError(null);
 
+        // Clear previous lot selection once a new section is picked
+        setSelectedLot(null);
+        setShowEnlargementMap(false);
+
         const cacheKey = `${selectedBarangay}-${selectedSection}`;
 
         // Check cache first
         if (lotDataCache.current[cacheKey]) {
             setLotGeoData(lotDataCache.current[cacheKey]);
-            setSelectedLot(null);
-            setShowEnlargementMap(false);
         } else {
             setIsLoadingSection(true);
             // Load lots for this section
@@ -164,7 +167,7 @@ export default function PimView({ isStaff, geoData }) {
 
     // When Enlargement is requested
     const handleLoadEnlargement = () => {
-        if (!selectedBarangay || !selectedSection || !selectedLot) return;
+        if (!selectedBarangay || selectedSection === null || !selectedLot) return;
 
         apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${selectedSection}/enlargement/`)
             .then(res => res.json())
@@ -192,6 +195,7 @@ export default function PimView({ isStaff, geoData }) {
         }
         // We are looking at Barangay Level (seeing sections)
         else if (feature.properties.hasOwnProperty('section_number') && !feature.properties.hasOwnProperty('PIN') && !feature.properties.hasOwnProperty('pin')) {
+            setSelectedLot(null); // Clear selected lot when clicking a new section
             setSelectedSection(feature.properties.section_number);
         }
         // We are looking at Section Level (seeing lots)
@@ -217,15 +221,15 @@ export default function PimView({ isStaff, geoData }) {
         if (showEnlargementMap && enlargementData) {
             activeGeoData = enlargementData;
             activeLayerKey = 'enlargement';
-        } else if (selectedSection && lotGeoData) {
+        } else if (selectedSection !== null && lotGeoData) {
             // Section is selected and lot data is loaded
             activeGeoData = lotGeoData;
             activeLayerKey = 'section-' + selectedSection;
-        } else if (selectedSection && isLoadingSection) {
+        } else if (selectedSection !== null && isLoadingSection) {
             // Section is selected but lots are still loading - keep showing barangay view
             activeGeoData = barangayGeoData;
             activeLayerKey = 'barangay-' + selectedBarangay + '-loading';
-        } else if (selectedSection && !lotGeoData) {
+        } else if (selectedSection !== null && !lotGeoData) {
             // Section is selected but no lot data (error or empty) - show barangay view
             activeGeoData = barangayGeoData;
             activeLayerKey = 'barangay-' + selectedBarangay;
@@ -252,26 +256,32 @@ export default function PimView({ isStaff, geoData }) {
         if (!selectedLot || !selectedLot.properties) return null;
         const p = selectedLot.properties;
 
-        // Logic as requested:
-        // Default adjustment levels: 50% or 75%
-        // If RRW Area exists: 80%
-        let adjustmentRate = 0.50; // Defaulting to 50% for now
-        if (safeNum(p.area_rrw) > 0) {
-            adjustmentRate = 0.80;
-        } else if (p.area_comml || p.area_indl) {
-            adjustmentRate = 0.75; // Example: Commercial/Industrial is 75%
+        // Determination of adjustment rate
+        // We use refinementLevel state, but ensure it's valid for this lot
+        const canUseRRW = safeNum(p.area_rrw) > 0;
+        const adjustmentRate = (refinementLevel === 0.50 && !canUseRRW) ? 0.75 : refinementLevel;
+
+        // Base values per land use (San Pascual defaults)
+        let unitValue = 1000;       // standard
+        let assessmentLevel = 0.20; // default (residential)
+
+        // Automatic Land Use Logic
+        if (safeNum(p.area_comml) > 0) {
+            unitValue = 2500;
+            assessmentLevel = 0.50;
+        } else if (safeNum(p.area_indl) > 0) {
+            unitValue = 3000;
+            assessmentLevel = 0.50;
+        } else if (safeNum(p.area_agri) > 0) {
+            unitValue = 500;
+            assessmentLevel = 0.40;
         }
 
-        // These defaults should be editable/come from DB, but using placeholders per prompt
-        const unitValue = 1000; // placeholder
-        const assessmentLevel = 0.20; // placeholder
-        const taxRate = 0.02; // placeholder
-
-        // Sum up all areas to get total land area
         const totalArea = safeNum(p.area_res) + safeNum(p.area_agri) + safeNum(p.area_indl) + safeNum(p.area_comml);
 
         const marketValue = totalArea * unitValue * adjustmentRate;
         const assessedValue = marketValue * assessmentLevel;
+        const taxRate = 0.02; // 2% RPT
         const rpt = assessedValue * taxRate;
 
         return {
@@ -284,7 +294,7 @@ export default function PimView({ isStaff, geoData }) {
             assessedValue,
             rpt
         };
-    }, [selectedLot]);
+    }, [selectedLot, refinementLevel]);
 
     return (
         <div className="pim-layout" style={{ height: '100%', display: 'flex' }}>
@@ -332,9 +342,9 @@ export default function PimView({ isStaff, geoData }) {
                                 Back to Map View
                             </button>
                         )}
-                        {selectedSection && (
+                        {selectedSection !== null && (
                             <button
-                                onClick={() => { setSelectedSection(null); setLotGeoData(null); setShowEnlargementMap(false); }}
+                                onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLot(null); setShowEnlargementMap(false); }}
                                 style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
                             >
                                 Back to Sections
@@ -377,9 +387,9 @@ export default function PimView({ isStaff, geoData }) {
             <div className="pim-details" style={{ width: '320px', background: '#fff', borderRadius: '12px', padding: '20px', overflowY: 'auto', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)' }}>
 
                 {/* If Section is selected, show Lot Details or Lot List */}
-                {selectedSection ? (
+                {selectedSection !== null ? (
                     <>
-                        {selectedLot ? (
+                        {selectedLot && lotGeoData?.features ? (
                             <div className="lot-details">
                                 <button
                                     onClick={() => setSelectedLot(null)}
@@ -388,43 +398,125 @@ export default function PimView({ isStaff, geoData }) {
                                     &larr; Back to Lots
                                 </button>
 
-                                <h3 style={{ margin: '0 0 15px 0', color: '#0f1d35' }}>Lot Details</h3>
+                                <div className="lot-details-grid">
+                                    <div className="lot-detail-field full">
+                                        <label>LOT / PARCEL</label>
+                                        <select 
+                                            value={lotGeoData.features.indexOf(selectedLot)} 
+                                            onChange={(e) => setSelectedLot(lotGeoData.features[e.target.value])}
+                                            className="lot-select"
+                                        >
+                                            {lotGeoData.features.map((f, idx) => (
+                                                <option key={idx} value={idx}>
+                                                    Lot {String(f.properties.pin || '').split('-').pop() || (idx + 1)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <div className="detail-row"><strong>PIN:</strong> {selectedLot.properties.pin || 'N/A'}</div>
-                                    <div className="detail-row"><strong>Owner:</strong> {selectedLot.properties.owner || 'N/A'}</div>
-                                    <div className="detail-row"><strong>Address:</strong> {selectedLot.properties.address || 'N/A'}</div>
-                                    <div className="detail-row"><strong>ARP No:</strong> {selectedLot.properties.arp_no || 'N/A'}</div>
-                                    <div className="detail-row"><strong>Prev ARP:</strong> {selectedLot.properties.prev_arp_no || 'N/A'}</div>
+                                    <div className="lot-detail-field full">
+                                        <label>MUNICIPALITY</label>
+                                        <div className="lot-val-box">San Pascual, Batangas</div>
+                                    </div>
 
-                                    <h4 style={{ margin: '10px 0 5px 0', borderBottom: '1px solid #eee', color: '#1e3a5f' }}>Areas (sq.m)</h4>
-                                    <div className="detail-row"><strong>Residential:</strong> {selectedLot.properties.area_res || '0'}</div>
-                                    <div className="detail-row"><strong>Agricultural:</strong> {selectedLot.properties.area_agri || '0'}</div>
-                                    <div className="detail-row"><strong>Commercial:</strong> {selectedLot.properties.area_comml || '0'}</div>
-                                    <div className="detail-row"><strong>Industrial:</strong> {selectedLot.properties.area_indl || '0'}</div>
-                                    <div className="detail-row"><strong>RRW (Right of Way):</strong> {selectedLot.properties.area_rrw || '0'}</div>
-                                    <div className="detail-row"><strong>Exempt:</strong> {selectedLot.properties.area_exempt || '0'}</div>
+                                    <div className="lot-detail-field-half">
+                                        <label>BARANGAY</label>
+                                        <div className="lot-val-box">{selectedBarangay}</div>
+                                    </div>
 
-                                    {/* Computation Engine Values */}
-                                    {computedTax && (
-                                        <>
-                                            <h4 style={{ margin: '15px 0 5px 0', borderBottom: '1px solid #eee', color: '#1e3a5f' }}>Computation</h4>
-                                            <div className="detail-row"><strong>Total Area:</strong> {computedTax.totalArea.toFixed(2)}</div>
-                                            <div className="detail-row"><strong>Adjustment Level:</strong> {(computedTax.adjustmentRate * 100).toFixed(0)}%</div>
-                                            <div className="detail-row"><strong>Market Value:</strong> ₱{computedTax.marketValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            <div className="detail-row"><strong>Assessed Value:</strong> ₱{computedTax.assessedValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                            <div className="detail-row"><strong>Real Property Tax:</strong> ₱{computedTax.rpt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-                                        </>
-                                    )}
+                                    <div className="lot-detail-field-half">
+                                        <label>SECTION #</label>
+                                        <div className="lot-val-box">Section {selectedSection}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>OWNER</label>
+                                        <div className="lot-card-val">{selectedLot.properties?.owner || 'N/A'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>PIN</label>
+                                        <div className="lot-card-val highlight">{selectedLot.properties?.pin || 'N/A'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card full">
+                                        <label>ADDRESS</label>
+                                        <div className="lot-card-val small">{selectedLot.properties?.address || `Lot ${String(selectedLot.properties?.pin || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>LAND USE</label>
+                                        <div className="lot-card-val landuse">
+                                            {(() => {
+                                                const p = selectedLot.properties;
+                                                const uses = [];
+                                                if (safeNum(p.area_res) > 0) uses.push('Residential');
+                                                if (safeNum(p.area_agri) > 0) uses.push('Agricultural');
+                                                if (safeNum(p.area_comml) > 0) uses.push('Commercial');
+                                                if (safeNum(p.area_indl) > 0) uses.push('Industrial');
+                                                return uses.join(', ') || 'Rural/Open';
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>ARP NO.</label>
+                                        <div className="lot-card-val">{selectedLot.properties?.arp_no || 'N/A'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>PREV. ARP NO.</label>
+                                        <div className="lot-card-val">{selectedLot.properties?.prev_arp_no || 'N/A'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card">
+                                        <label>AREA PER SQM</label>
+                                        <div className="lot-card-val">{computedTax?.totalArea?.toFixed(2) || '0.00'} sqm</div>
+                                    </div>
+
+                                    <div className="lot-detail-card full specialty">
+                                        <label>ADJUSTMENT LEVEL</label>
+                                        <div className="adj-buttons">
+                                            <button 
+                                                className={refinementLevel === 0.75 ? 'active' : ''} 
+                                                onClick={() => setRefinementLevel(0.75)}
+                                            >75%</button>
+                                            <button 
+                                                className={refinementLevel === 0.85 ? 'active' : ''} 
+                                                onClick={() => setRefinementLevel(0.85)}
+                                            >85%</button>
+                                            {safeNum(selectedLot.properties.area_rrw) > 0 && (
+                                                <button 
+                                                    className={refinementLevel === 0.50 ? 'active' : ''} 
+                                                    onClick={() => setRefinementLevel(0.50)}
+                                                >50% (RRW)</button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="lot-detail-card highlight-green">
+                                        <label>MARKET VALUE</label>
+                                        <div className="lot-card-val primary">₱{computedTax?.marketValue?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card highlight-blue">
+                                        <label>ASSESSED VALUE</label>
+                                        <div className="lot-card-val secondary">₱{computedTax?.assessedValue?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
+                                    </div>
+
+                                    <div className="lot-detail-card highlight-navy">
+                                        <label>RPT</label>
+                                        <div className="lot-card-val secondary">₱{computedTax?.rpt?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
+                                    </div>
 
                                     {/* Enlargement Action */}
                                     {lotGeoData?.metadata?.has_enlargement && (
-                                        <button
-                                            onClick={handleLoadEnlargement}
-                                            style={{ marginTop: '20px', width: '100%', padding: '10px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-                                        >
-                                            See Enlargement Map
-                                        </button>
+                                        <div className="lot-enlargement-box">
+                                            <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
+                                            <button onClick={handleLoadEnlargement} className="enlarge-btn">
+                                                SEE ENLARGEMENT
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -444,8 +536,8 @@ export default function PimView({ isStaff, geoData }) {
                                                     background: '#fff', cursor: 'pointer', color: '#1e3a5f'
                                                 }}
                                             >
-                                                {f.properties.owner || `PIN: ${f.properties.pin || 'Unknown'}`}
-                                                {f.properties.arp_no && <div style={{ fontSize: '0.8em', color: '#64748b' }}>ARP: {f.properties.arp_no}</div>}
+                                                {f.properties?.owner || `PIN: ${f.properties?.pin || 'Unknown'}`}
+                                                {f.properties?.arp_no && <div style={{ fontSize: '0.8em', color: '#64748b' }}>ARP: {f.properties.arp_no}</div>}
                                             </button>
                                         ))}
                                     </div>
@@ -510,16 +602,128 @@ export default function PimView({ isStaff, geoData }) {
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-        .detail-row {
-          font-size: 0.85em;
-          padding: 4px 0;
-          border-bottom: 1px dotted #e2e8f0;
+        .lot-details-grid {
           display: flex;
-          justify-content: space-between;
+          flex-direction: column;
+          gap: 12px;
+          padding-top: 10px;
         }
-        .detail-row strong {
-          color: #64748b;
+        .lot-detail-field {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
         }
+        .lot-detail-field.full { width: 100%; }
+        .lot-detail-field-half { width: 48%; display: inline-block; vertical-align: top; margin-right: 4%; margin-bottom: 12px; }
+        .lot-detail-field-half:last-child { margin-right: 0; }
+        
+        .lot-detail-field label, .lot-detail-field-half label {
+          font-size: 0.7em;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 2px;
+        }
+        .lot-val-box {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-weight: 700;
+          color: #0f1d35;
+          font-size: 0.9em;
+        }
+        .lot-select {
+          width: 100%;
+          padding: 10px;
+          border-radius: 8px;
+          border: 2px solid #3b82f6;
+          font-weight: 800;
+          color: #1e3a5f;
+          background: #fff;
+          cursor: pointer;
+        }
+        .lot-detail-card {
+          background: #fff;
+          border: 1px solid #f1f5f9;
+          padding: 12px;
+          border-radius: 8px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+          display: inline-block;
+          width: 48%;
+          margin-right: 4%;
+          margin-bottom: 8px;
+          vertical-align: top;
+        }
+        .lot-detail-card.full { width: 100%; margin-right: 0; }
+        .lot-detail-card:nth-child(even):not(.full) { margin-right: 0; }
+        
+        .lot-detail-card label {
+          font-size: 0.65em;
+          font-weight: 800;
+          color: #94a3b8;
+          display: block;
+          margin-bottom: 4px;
+          text-transform: uppercase;
+        }
+        .lot-card-val {
+          font-weight: 700;
+          color: #1e3a5f;
+          font-size: 0.95em;
+          word-break: break-word;
+        }
+        .lot-card-val.highlight { color: #dc2626; }
+        .lot-card-val.small { font-size: 0.82em; line-height: 1.4; color: #475569; }
+        .lot-card-val.landuse { color: #059669; }
+        .lot-card-val.primary { color: #dc2626; font-size: 1.3em; }
+        .lot-card-val.secondary { color: #1e3a5f; font-size: 1.15em; }
+        
+        .highlight-green { border-left: 4px solid #10b981; background: #f0fdf4 !important; }
+        .highlight-blue { border-left: 4px solid #3b82f6; background: #eff6ff !important; }
+        .highlight-navy { border-left: 4px solid #0f1d35; background: #f8fafc !important; }
+        
+        .adj-buttons { display: flex; gap: 6px; margin-top: 8px; }
+        .adj-buttons button {
+          flex: 1;
+          padding: 8px 4px;
+          font-size: 0.75em;
+          font-weight: 800;
+          border: 1px solid #cbd5e1;
+          background: #fff;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .adj-buttons button.active {
+          background: #1e3a5f;
+          color: #fff;
+          border-color: #1e3a5f;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .lot-enlargement-box {
+          margin-top: 15px;
+          padding: 15px;
+          background: #fffbeb;
+          border: 1px solid #fcd34d;
+          border-radius: 10px;
+          text-align: center;
+          width: 100%;
+        }
+        .enlarge-text { font-size: 0.8em; color: #92400e; margin-bottom: 12px; font-weight: 700; }
+        .enlarge-btn {
+          width: 100%;
+          padding: 10px;
+          background: #d97706;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .enlarge-btn:hover { background: #b45309; }
       `}} />
         </div>
     );
