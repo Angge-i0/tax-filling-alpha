@@ -218,8 +218,8 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
               >
                 <Bell size={20} />
                 <span style={{
-                  position: 'absolute', top: '5px', right: '5px',
-                  width: '8px', height: '8px', background: '#ef4444',
+                  position: 'absolute', top: '0.3125rem', right: '0.3125rem',
+                  width: '0.5rem', height: '0.5rem', background: '#ef4444',
                   borderRadius: '50%', border: '1px solid #0f1d35'
                 }} />
               </button>
@@ -249,7 +249,7 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
 
           {/* Error / Success banners */}
           {error && <div className="lp-error">{error}</div>}
-          {success && <div className="lp-success" style={{ color: '#10b981', background: '#ecfdf5', padding: '12px', borderRadius: '8px', marginBottom: '20px', fontSize: '0.9em', border: '1px solid #d1fae5' }}>{success}</div>}
+          {success && <div className="lp-success" style={{ color: '#10b981', background: '#ecfdf5', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1.25rem', fontSize: '0.9em', border: '1px solid #d1fae5' }}>{success}</div>}
 
           {/* ── LOGIN FORM ── */}
           {view === 'login' && (
@@ -295,7 +295,7 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-10px', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-0.625rem', marginBottom: '0.9375rem' }}>
                 <button
                   type="button"
                   onClick={() => switchView('forgot')}
@@ -387,7 +387,7 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
                 />
               </div>
 
-              <button type="submit" className="lp-submit" disabled={isLoading} style={{ marginTop: '10px' }}>
+              <button type="submit" className="lp-submit" disabled={isLoading} style={{ marginTop: '0.625rem' }}>
                 {isLoading ? 'Creating account…' : 'Sign Up'}
               </button>
             </form>
@@ -436,7 +436,7 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
                   value={forgotMsg}
                   onChange={e => setForgotMsg(e.target.value)}
                   placeholder="Explain your issue (e.g. I lost access to my email...)"
-                  style={{ width: '100%', padding: '12px', background: '#0f1d35', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff', fontSize: '0.9em', minHeight: '80px', fontFamily: 'inherit', resize: 'none' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#0f1d35', border: '1px solid #1e293b', borderRadius: '0.5rem', color: '#fff', fontSize: '0.9em', minHeight: '5rem', fontFamily: 'inherit', resize: 'none' }}
                 />
               </div>
 
@@ -499,19 +499,19 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
                   >
                     <X size={14} />
                   </button>
-                  <div style={{ fontSize: '0.75em', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#3b82f6', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                     Status: {statusData.status}
                   </div>
-                  <div style={{ fontSize: '0.9em', color: '#fff', lineHeight: '1.4' }}>
+                  <div style={{ fontSize: '0.9rem', color: '#fff', lineHeight: '1.4' }}>
                     {statusData.message}
                   </div>
-                  <div style={{ fontSize: '0.7em', color: 'rgba(255,255,255,0.4)', marginTop: '10px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '0.625rem' }}>
                     Last updated: {new Date(statusData.created_at).toLocaleString()}
                   </div>
 
                   {/* Show reset form if approved */}
                   {statusData.status === 'approved' && (
-                    <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid rgba(59, 130, 246, 0.3)' }}>
+                    <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '0.0625rem solid rgba(59, 130, 246, 0.3)' }}>
                       <div className="lp-field">
                         <label>Set New Password</label>
                         <PasswordInput
@@ -527,7 +527,7 @@ export default function LoginModal({ onLoginSuccess, initialRole = 'user' }) {
                         type="button"
                         onClick={handleResetPassword}
                         className="lp-submit"
-                        style={{ marginTop: '10px' }}
+                        style={{ marginTop: '0.625rem' }}
                         disabled={isLoading}
                       >
                         {isLoading ? 'Resetting...' : 'Reset Password'}

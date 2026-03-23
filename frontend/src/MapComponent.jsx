@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import { Plus, Minus, Maximize, Locate } from 'lucide-react'
 
 // Safer GeoJSON wrapper to catch errors during feature processing
-function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
+function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   const map = useMap()
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
@@ -66,6 +66,13 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     };
   }, [map])
 
+  useEffect(() => {
+    if (onMapReady) onMapReady(map);
+    return () => {
+      if (onMapReady) onMapReady(null);
+    };
+  }, [map, onMapReady]);
+
   // Zoom to selected feature
   useEffect(() => {
     if (selectedFeature && geoJsonRef.current && !isStatic) {
@@ -95,14 +102,17 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         geoJsonRef.current.eachLayer((layer) => {
           const isSelected = selectedFeature && layer.feature === selectedFeature;
           const props = layer.feature?.properties || {};
+          const defaultColor = props.section_color || props.color || '#3388ff';
+          const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
+          const selectedFill = isCad ? defaultColor : '#60a5fa';
+          const selectedOpacity = isCad ? 0.72 : 0.88;
 
           if (isSelected) {
-            const featureColor = props.section_color || props.color || '#3388ff';
             layer.setStyle({
-              fillOpacity: 0.8,
-              weight: 4,
-              color: '#ffffff',
-              fillColor: featureColor,
+              fillOpacity: selectedOpacity,
+              weight: 3.5,
+              color: selectedBorder,
+              fillColor: selectedFill,
               className: 'selected-feature-pulse'
             });
             layer.bringToFront();
@@ -120,8 +130,8 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           } else {
             const featureColor = props.section_color || props.color || '#3388ff';
             layer.setStyle({
-              fillOpacity: 0.4,
-              weight: 2,
+              fillOpacity: selectedFeature ? 0.22 : 0.4,
+              weight: selectedFeature ? 1.25 : 2,
               opacity: 0.8,
               color: '#ffffff',
               fillColor: featureColor
@@ -225,8 +235,11 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       const isSelected = selectedFeatureRef.current === feature;
       try {
         if (isSelected) {
-          const featureColor = props.section_color || props.color || '#3388ff';
-          layer.setStyle({ fillOpacity: 0.8, weight: 4, color: '#ffffff', fillColor: featureColor });
+          const defaultColor = props.section_color || props.color || '#3388ff';
+          const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
+          const selectedFill = isCad ? defaultColor : '#60a5fa';
+          const selectedOpacity = isCad ? 0.72 : 0.88;
+          layer.setStyle({ fillOpacity: selectedOpacity, weight: 3.5, color: selectedBorder, fillColor: selectedFill });
         } else if (isCad && legend) {
           const brgyName = props.ADM4_EN;
           const match = legend.find(l => l.name?.toLowerCase() === brgyName?.toLowerCase());
@@ -272,10 +285,12 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
               if (feature.properties?.ADM4_EN) {
                 layer.bindTooltip(`<b>${feature.properties.ADM4_EN}</b>`, { sticky: true });
               }
-              layer.on('click', (e) => {
-                L.DomEvent.stopPropagation(e);
-                onFeatureSelect(feature);
-              });
+              if (isBackgroundInteractive) {
+                layer.on('click', (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  onFeatureSelect(feature);
+                });
+              }
             } catch (e) {}
           }}
         />
@@ -290,7 +305,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         />
       )}
 
-      {!isStatic && (
+      {!isStatic && showCustomControls && (
         <>
           <div className="map-zoom-controls">
             <button className="map-control-btn" onClick={() => map.zoomIn()}><Plus size={20} /></button>
@@ -312,7 +327,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   )
 }
 
-export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
+export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   return (
     <MapContainer
       style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, background: '#f1f5f9' }}
@@ -337,6 +352,9 @@ export default function MapComponent({ geoData, error, onFeatureSelect, onEnlarg
         backgroundGeoData={backgroundGeoData}
         layerKey={layerKey}
         isStatic={isStatic}
+        isBackgroundInteractive={isBackgroundInteractive}
+        showCustomControls={showCustomControls}
+        onMapReady={onMapReady}
       />
     </MapContainer>
   )

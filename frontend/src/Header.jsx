@@ -99,7 +99,7 @@ export default function Header({ barangays = [], onBarangaySelect, username }) {
                     <button className="filter-trigger-btn" onClick={() => { setIsNotifOpen(!isNotifOpen); if (!isNotifOpen) markAllAsRead(); }}>
                         <Bell size={20} fill={unreadCount > 0 ? "currentColor" : "none"} />
                         {unreadCount > 0 && (
-                            <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', fontSize: '10px', padding: '2px 5px', borderRadius: '50%', border: '2px solid #0f1d35' }}>
+                            <span style={{ position: 'absolute', top: '-0.3125rem', right: '-0.3125rem', background: '#ef4444', color: '#fff', fontSize: '0.625rem', padding: '0.125rem 0.3125rem', borderRadius: '50%', border: '0.125rem solid #0f1d35' }}>
                                 {unreadCount}
                             </span>
                         )}
@@ -110,26 +110,26 @@ export default function Header({ barangays = [], onBarangaySelect, username }) {
                             position: 'absolute',
                             top: '100%',
                             right: 0,
-                            width: '320px',
+                            width: '20rem',
                             background: '#1e293b',
-                            border: '1px solid #334155',
-                            borderRadius: '8px',
-                            marginTop: '10px',
-                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
+                            border: '0.0625rem solid #334155',
+                            borderRadius: '0.5rem',
+                            marginTop: '0.625rem',
+                            boxShadow: '0 0.625rem 0.9375rem -0.1875rem rgba(0,0,0,0.5)',
                             zIndex: 100,
                             display: 'flex',
                             flexDirection: 'column'
                         }}>
                             <div style={{ padding: '12px 16px', borderBottom: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '14px', color: '#fff' }}>Notifications</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '0.875rem', color: '#fff' }}>Notifications</span>
                                 <button onClick={() => setIsNotifOpen(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}><X size={16} /></button>
                             </div>
                             <div style={{
-                                maxHeight: '180px', // Show roughly 2 notifications before scrolling
+                                maxHeight: '11.25rem', // Show roughly 2 notifications before scrolling
                                 overflowY: 'auto'
                             }}>
                                 {notifications.length === 0 ? (
-                                    <div style={{ padding: '30px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No notifications</div>
+                                    <div style={{ padding: '1.875rem 1.25rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.8125rem' }}>No notifications</div>
                                 ) : (
                                     notifications.map(n => (
                                         <div key={n.id} className="notif-item" style={{
@@ -141,7 +141,7 @@ export default function Header({ barangays = [], onBarangaySelect, username }) {
                                             cursor: 'default'
                                         }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                <div style={{ fontWeight: '600', fontSize: '13px', color: '#fff', marginBottom: '4px', paddingRight: '20px' }}>{n.title}</div>
+                                                <div style={{ fontWeight: '600', fontSize: '0.8125rem', color: '#fff', marginBottom: '0.25rem', paddingRight: '1.25rem' }}>{n.title}</div>
                                                 <button
                                                     onClick={(e) => handleDeleteNotif(e, n.id)}
                                                     className="delete-notif-btn"
@@ -150,8 +150,8 @@ export default function Header({ barangays = [], onBarangaySelect, username }) {
                                                     <X size={14} />
                                                 </button>
                                             </div>
-                                            <div style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4' }}>{n.message}</div>
-                                            <div style={{ fontSize: '10px', color: '#64748b', marginTop: '6px' }}>{new Date(n.created_at).toLocaleString()}</div>
+                                            <div style={{ fontSize: '0.75rem', color: '#cbd5e1', lineHeight: '1.4' }}>{n.message}</div>
+                                            <div style={{ fontSize: '0.625rem', color: '#64748b', marginTop: '0.375rem' }}>{new Date(n.created_at).toLocaleString()}</div>
                                         </div>
                                     ))
                                 )}
@@ -165,12 +165,12 @@ export default function Header({ barangays = [], onBarangaySelect, username }) {
                                             border: 'none',
                                             color: '#ef4444',
                                             cursor: 'pointer',
-                                            fontSize: '12px',
+                                            fontSize: '0.75rem',
                                             fontWeight: '600',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '6px',
+                                            gap: '0.375rem',
                                             width: '100%',
                                             padding: '8px'
                                         }}

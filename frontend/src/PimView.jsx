@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { apiGet, getAccessToken, clearTokens } from './api';
 import MapComponent from './MapComponent';
+import { Plus, Minus, Locate } from 'lucide-react';
+import L from 'leaflet';
 
 // Complete list of all barangays in San Pascual
 const ALL_BARANGAYS = [
@@ -30,6 +32,9 @@ export default function PimView({ isStaff, geoData }) {
     const [error, setError] = useState(null);
     const [showEnlargementMap, setShowEnlargementMap] = useState(false);
     const [refinementLevel, setRefinementLevel] = useState(0.75);
+    const [showBarangayPanel, setShowBarangayPanel] = useState(true);
+    const [showDetailsPanel, setShowDetailsPanel] = useState(true);
+    const [mapInstance, setMapInstance] = useState(null);
 
     // Base map bounds reference
     const [mapCenter, setMapCenter] = useState([13.79, 121.0]);
@@ -256,6 +261,22 @@ export default function PimView({ isStaff, geoData }) {
 
     const activeFeature = selectedLot || null;
 
+    const handleRecenter = () => {
+        if (!mapInstance) return;
+        try {
+            if (activeGeoData?.features?.length) {
+                const bounds = L.geoJSON(activeGeoData).getBounds();
+                if (bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
+                    mapInstance.fitBounds(bounds, { padding: [10, 10], duration: 0.25 });
+                    return;
+                }
+            }
+        } catch (e) {
+            // Fallback below if bounds fail
+        }
+        mapInstance.setView([13.79, 121.0], 13);
+    };
+
     // --- Computation Engine ---
     const safeNum = (val) => {
         if (val === null || val === undefined || isNaN(val)) return 0;
@@ -307,9 +328,24 @@ export default function PimView({ isStaff, geoData }) {
     }, [selectedLot, refinementLevel]);
 
     return (
-        <div className="pim-layout" style={{ height: '100%', display: 'flex' }}>
+        <div className="pim-layout" style={{ height: '100%', display: 'flex', position: 'relative' }}>
             {/* LEFT: Barangay Filter Panel */}
-            <div className="pim-filter-panel" style={{ width: '250px', background: '#fff', padding: '15px', borderRadius: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)', overflowY: 'auto' }}>
+            <div className="pim-filter-panel" style={{
+                width: '24%',
+                maxWidth: '24rem',
+                background: '#fff',
+                padding: '15px',
+                borderRadius: '12px',
+                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                overflowY: 'auto',
+                position: 'absolute',
+                top: '4.5rem',
+                left: '0.75rem',
+                bottom: '0.75rem',
+                zIndex: 950,
+                transform: showBarangayPanel ? 'translateX(0)' : 'translateX(-110%)',
+                transition: 'transform 0.25s ease'
+            }}>
                 <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>Barangays</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     {barangayList.map(b => (
@@ -335,15 +371,51 @@ export default function PimView({ isStaff, geoData }) {
             </div>
 
             {/* CENTER: Main Map View */}
-            <div className="pim-map-area" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <h2 className="pim-view-title" style={{ margin: 0 }}>
-                        PIM VIEW {selectedBarangay ? `— ${selectedBarangay}` : ''} {selectedSection ? `(Section ${selectedSection})` : ''}
-                        {showEnlargementMap ? ' [ENLARGEMENT]' : ''}
-                        {isLoadingBarangay && <span style={{ fontSize: '0.7em', color: '#3b82f6', marginLeft: '10px' }}>Loading...</span>}
-                    </h2>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="pim-map-area" style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button
+                            className="pim-map-ctrl-btn"
+                            onClick={() => mapInstance?.zoomIn()}
+                            type="button"
+                            title="Zoom in"
+                            disabled={!mapInstance}
+                        >
+                            <Plus size={16} />
+                            <span>Zoom In</span>
+                        </button>
+                        <button
+                            className="pim-map-ctrl-btn"
+                            onClick={() => mapInstance?.zoomOut()}
+                            type="button"
+                            title="Zoom out"
+                            disabled={!mapInstance}
+                        >
+                            <Minus size={16} />
+                            <span>Zoom Out</span>
+                        </button>
+                        <button
+                            className="pim-map-ctrl-btn pim-map-ctrl-btn-primary"
+                            onClick={handleRecenter}
+                            type="button"
+                            title="Recenter"
+                            disabled={!mapInstance}
+                        >
+                            <Locate size={16} />
+                            <span>Recenter</span>
+                        </button>
+                        <button
+                            onClick={() => setShowBarangayPanel(v => !v)}
+                            style={{ background: '#0f1d35', color: '#fff', border: '1px solid #0f1d35', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                        >
+                            {showBarangayPanel ? 'Hide Barangays' : 'Show Barangays'}
+                        </button>
+                        <button
+                            onClick={() => setShowDetailsPanel(v => !v)}
+                            style={{ background: '#0f1d35', color: '#fff', border: '1px solid #0f1d35', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                        >
+                            {showDetailsPanel ? 'Hide Details' : 'Show Details'}
+                        </button>
                         {selectedBarangay && !selectedSection && (
                             <button
                                 onClick={() => { setSelectedBarangay(null); setBarangayGeoData(null); }}
@@ -352,7 +424,7 @@ export default function PimView({ isStaff, geoData }) {
                                 Back to Map View
                             </button>
                         )}
-                        {selectedSection !== null && (
+                        {selectedSection !== null && !showEnlargementMap && (
                             <button
                                 onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLot(null); setShowEnlargementMap(false); }}
                                 style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
@@ -371,7 +443,7 @@ export default function PimView({ isStaff, geoData }) {
                     </div>
                 </div>
 
-                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)', position: 'relative' }}>
+                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, minHeight: '72vh', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)', position: 'relative' }}>
                     {(isLoadingBarangay || isLoadingSection) && (
                         <div style={{
                             position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
@@ -389,13 +461,31 @@ export default function PimView({ isStaff, geoData }) {
                         onEnlargementRequest={handlePopupEnlargement}
                         selectedFeature={activeFeature}
                         backgroundGeoData={backgroundGeoData}
+                        isBackgroundInteractive={false}
+                        showCustomControls={false}
+                        onMapReady={setMapInstance}
                         layerKey={activeLayerKey}
                     />
                 </div>
             </div>
 
             {/* RIGHT: Detail & Lot List Panel */}
-            <div className="pim-details" style={{ width: '320px', background: '#fff', borderRadius: '12px', padding: '20px', overflowY: 'auto', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)' }}>
+            <div className="pim-details" style={{
+                width: '30%',
+                maxWidth: '28rem',
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '20px',
+                overflowY: 'auto',
+                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                position: 'absolute',
+                top: '4.5rem',
+                right: '0.75rem',
+                bottom: '0.75rem',
+                zIndex: 950,
+                transform: showDetailsPanel ? 'translateX(0)' : 'translateX(110%)',
+                transition: 'transform 0.25s ease'
+            }}>
 
                 {/* If Section is selected, show Lot Details or Lot List */}
                 {selectedSection !== null ? (

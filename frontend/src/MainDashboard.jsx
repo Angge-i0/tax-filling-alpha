@@ -171,7 +171,7 @@ export default function MainDashboard({ isStaff }) {
               </thead>
               <tbody>
                 {issues.length === 0 && (
-                  <tr><td colSpan={2} style={{ textAlign: 'center', padding: '24px', color: '#999' }}>No issues found.</td></tr>
+                  <tr><td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem', color: '#999' }}>No issues found.</td></tr>
                 )}
                 {issues.map(iss => (
                   <tr key={iss.id}>

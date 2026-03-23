@@ -155,7 +155,7 @@ function EditUserModal({ user, onClose, onUpdated }) {
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Leave blank to keep current" minLength={6} />
           </div>
 
-          <div className="ad-form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+          <div className="ad-form-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.625rem' }}>
             <input type="checkbox" id="is_active" checked={isActive} onChange={e => setIsActive(e.target.checked)} />
             <label htmlFor="is_active" style={{ marginBottom: 0 }}>Account Active</label>
           </div>
@@ -245,8 +245,8 @@ export default function AdminDashboard({ username, onLogout }) {
 
   return (
     <div className="um-page">
-      <div className="ad-section-header" style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '30px', alignItems: 'center' }}>
+      <div className="ad-section-header" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', gap: '1.875rem', alignItems: 'center' }}>
           <h2
             className="ad-section-title"
             onClick={() => setViewMode('users')}
@@ -255,7 +255,7 @@ export default function AdminDashboard({ username, onLogout }) {
               fontSize: '1.6em',
               fontWeight: '800',
               color: viewMode === 'users' ? '#0f1d35' : '#94a3b8',
-              borderBottom: viewMode === 'users' ? '3px solid #1e3a5f' : '3px solid transparent',
+              borderBottom: viewMode === 'users' ? '0.1875rem solid #1e3a5f' : '0.1875rem solid transparent',
               paddingBottom: '8px',
               transition: 'all 0.2s',
               margin: 0
@@ -271,20 +271,20 @@ export default function AdminDashboard({ username, onLogout }) {
               fontSize: '1.6em',
               fontWeight: '800',
               color: viewMode === 'requests' ? '#0f1d35' : '#94a3b8',
-              borderBottom: viewMode === 'requests' ? '3px solid #1e3a5f' : '3px solid transparent',
+              borderBottom: viewMode === 'requests' ? '0.1875rem solid #1e3a5f' : '0.1875rem solid transparent',
               paddingBottom: '8px',
               transition: 'all 0.2s',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '0.625rem',
               margin: 0
             }}
           >
             Password Requests
             {requests.filter(r => r.status === 'pending').length > 0 && (
               <span style={{
-                background: '#ef4444', color: '#fff', fontSize: '12px',
-                borderRadius: '12px', padding: '2px 8px', fontWeight: 'bold'
+                background: '#ef4444', color: '#fff', fontSize: '0.75rem',
+                borderRadius: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: 'bold'
               }}>
                 {requests.filter(r => r.status === 'pending').length}
               </span>
@@ -389,11 +389,11 @@ export default function AdminDashboard({ username, onLogout }) {
                     <tr key={r.id}>
                       <td className="ad-cell-accent">
                         <div>{r.full_name}</div>
-                        <div style={{ fontSize: '11px', opacity: 0.7 }}>{r.username}</div>
+                        <div style={{ fontSize: '0.6875rem', opacity: 0.7 }}>{r.username}</div>
                       </td>
                       <td>{r.role}</td>
                       <td>Password Reset</td>
-                      <td title={r.message} style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <td title={r.message} style={{ maxWidth: '12.5rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {r.message || '-'}
                       </td>
                       <td>{new Date(r.created_at).toLocaleDateString()}</td>
@@ -409,7 +409,7 @@ export default function AdminDashboard({ username, onLogout }) {
                             <button className="ad-cancel-btn" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => handleRespond(r.id, 'deny')}>Deny</button>
                           </div>
                         )}
-                        {r.status !== 'pending' && <span style={{ fontSize: '12px', opacity: 0.5 }}>Processed</span>}
+                        {r.status !== 'pending' && <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Processed</span>}
                       </td>
                     </tr>
                   ))}

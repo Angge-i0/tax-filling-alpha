@@ -145,7 +145,52 @@ You can also override with env vars:
 - `DB_USER`
 - `DB_PASSWORD`
 
-## 11. Useful checks
+## 11. Change Docker Postgres username/password
+
+Use one of these two methods:
+
+### A) Fresh start (easiest, deletes old DB data)
+
+1. Edit `docker-compose.yml` under `db.environment`:
+   - `POSTGRES_USER`
+   - `POSTGRES_PASSWORD`
+   - `POSTGRES_DB` (optional)
+2. Stop and remove containers + volume:
+
+```bat
+docker compose down -v
+```
+
+3. Start again:
+
+```bat
+docker compose up -d
+```
+
+4. Update app config to match:
+   - `taxfiling/settings.py` env vars (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`)
+   - pgAdmin saved server credentials
+   - import scripts / `ogr2ogr` connection string
+
+### B) Keep existing DB data (recommended if DB already has important data)
+
+1. Keep container running with current credentials.
+2. Change password inside PostgreSQL:
+
+```bat
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "ALTER USER taxuser WITH PASSWORD 'new_password_here';"
+```
+
+3. Update app config and tools with new password:
+   - `DB_PASSWORD` in environment
+   - pgAdmin saved server password
+   - `ogr2ogr` / import script password
+
+4. Restart backend after password change.
+
+Tip: changing `POSTGRES_USER` in `docker-compose.yml` does not rename an existing DB role inside old persisted volumes. For existing volumes, create/alter roles with SQL.
+
+## 12. Useful checks
 
 List database roles/users:
 
@@ -171,7 +216,7 @@ SELECT COUNT(*) FROM pim_sections;
 SELECT COUNT(*) FROM pim_enlargements;
 ```
 
-## 12. Sync DB to another device
+## 13. Sync DB to another device
 
 ### Backup and restore (simplest)
 
@@ -202,7 +247,7 @@ One machine hosts PostgreSQL and other devices connect over network.
 This needs static IP, firewall rules, strong passwords, and SSL/VPN.
 Good for real-time shared DB, but more setup and security work.
 
-## 13. Common problems
+## 14. Common problems
 
 ### `http://localhost:5050` not opening
 
