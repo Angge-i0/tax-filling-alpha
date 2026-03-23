@@ -36,6 +36,14 @@ function Get-NormalizedBarangayName([System.IO.FileInfo]$fileInfo) {
     return $clean
 }
 
+function Get-SectionNumber([string]$name) {
+    $match = [regex]::Match($name, "(?:section|seec|sec)\s*(\d+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($match.Success) {
+        return [int]$match.Groups[1].Value
+    }
+    return $null
+}
+
 function Invoke-Psql([string]$sql) {
     docker exec -i $ContainerName psql -v ON_ERROR_STOP=1 -U $DbUser -d $DbName -c $sql | Out-Host
 }
@@ -139,16 +147,15 @@ Get-ChildItem $pimDir -Recurse -Filter *.gpkg -File | ForEach-Object {
     $source = $_.Name
     $barangay = Get-NormalizedBarangayName $_
     $baseLower = $_.BaseName.ToLowerInvariant()
-    $match = [regex]::Match($_.BaseName, "Section\s*(\d+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $sectionNumber = Get-SectionNumber $_.BaseName
 
     Import-OneFile $file
 
-    if ($baseLower -match "section" -and $baseLower -match "enlargement") {
-        if (-not $match.Success) {
+    if ($baseLower -match "enlargement") {
+        if ($null -eq $sectionNumber) {
             Write-Warning "Skipping enlargement file with no section number: $file"
             return
         }
-        $sectionNumber = [int]$match.Groups[1].Value
         $barangaySql = Escape-SqlLiteral $barangay
         $sourceSql = Escape-SqlLiteral $source
         Invoke-Psql @"
@@ -157,12 +164,7 @@ SELECT '$barangaySql', $sectionNumber, '$sourceSql', COALESCE(to_jsonb(t) - 'geo
 FROM tmp_import t
 WHERE t.geom IS NOT NULL;
 "@
-    } elseif ($baseLower -match "section") {
-        if (-not $match.Success) {
-            Write-Warning "Skipping section file with no section number: $file"
-            return
-        }
-        $sectionNumber = [int]$match.Groups[1].Value
+    } elseif ($null -ne $sectionNumber) {
         $barangaySql = Escape-SqlLiteral $barangay
         $sourceSql = Escape-SqlLiteral $source
         Invoke-Psql @"

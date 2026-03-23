@@ -114,6 +114,13 @@ def _normalise_properties(properties):
     return normalised
 
 
+def _has_enlargement_marker(properties: dict) -> bool:
+    for value in (properties or {}).values():
+        if isinstance(value, str) and 'see enlargement' in value.strip().lower():
+            return True
+    return False
+
+
 def _extract_section_number(filename):
     match = re.search(r'[Ss]ection\s*(\d+)', filename or '')
     if match:
@@ -223,13 +230,21 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
         return JsonResponse({'error': f'Section {section_number} not found.'}, status=404)
 
     enlargement_base_qs, _ = _filter_by_barangay(PimEnlargement.objects, barangay_name)
-    has_enlargement = enlargement_base_qs.filter(section_number=section_number).exists()
+    section_enlargement_qs = enlargement_base_qs.filter(section_number=section_number)
+    section_has_enlargement_file = section_enlargement_qs.exists()
 
     features = []
+    marker_count = 0
     for row in lots_qs:
         props = _normalise_properties(row.properties)
         props['barangay'] = canonical_name
         props['section_number'] = section_number
+        # Strict per-lot rule: show popup/button only when the lot attributes
+        # explicitly contain "See enlargement".
+        lot_has_enlargement = _has_enlargement_marker(props)
+        if lot_has_enlargement:
+            marker_count += 1
+        props['has_enlargement'] = lot_has_enlargement
         features.append(_feature_from_geom(row.geom, props))
 
     geojson = {
@@ -239,7 +254,9 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
             'barangay': canonical_name,
             'section_number': section_number,
             'lot_count': len(features),
-            'has_enlargement': has_enlargement,
+            # Keep section-level flag for UI flow:
+            # true if either a marker exists in lots or an enlargement file exists.
+            'has_enlargement': bool(marker_count > 0 or section_has_enlargement_file),
         },
     }
     return JsonResponse(geojson)

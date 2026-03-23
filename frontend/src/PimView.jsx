@@ -165,11 +165,10 @@ export default function PimView({ isStaff, geoData }) {
 
     }, [selectedSection, selectedBarangay]);
 
-    // When Enlargement is requested
-    const handleLoadEnlargement = () => {
-        if (!selectedBarangay || selectedSection === null || !selectedLot) return;
-
-        apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${selectedSection}/enlargement/`)
+    const loadEnlargementForSection = (sectionNum, lotFeature = null) => {
+        if (!selectedBarangay || sectionNum === null) return;
+        if (lotFeature) setSelectedLot(lotFeature);
+        apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${sectionNum}/enlargement/`)
             .then(res => res.json())
             .then(data => {
                 if (data.error) throw new Error(data.error);
@@ -177,6 +176,17 @@ export default function PimView({ isStaff, geoData }) {
                 setShowEnlargementMap(true);
             })
             .catch(err => alert("Error loading enlargement: " + String(err)));
+    };
+
+    // When Enlargement is requested from details panel
+    const handleLoadEnlargement = () => {
+        loadEnlargementForSection(selectedSection, selectedLot);
+    };
+
+    // When Enlargement is requested from map popup
+    const handlePopupEnlargement = (feature) => {
+        const sectionNum = feature?.properties?.section_number ?? selectedSection;
+        loadEnlargementForSection(sectionNum, feature);
     };
 
     const handleMapFeatureSelect = (feature) => {
@@ -376,6 +386,7 @@ export default function PimView({ isStaff, geoData }) {
                         geoData={activeGeoData}
                         error={error}
                         onFeatureSelect={handleMapFeatureSelect}
+                        onEnlargementRequest={handlePopupEnlargement}
                         selectedFeature={activeFeature}
                         backgroundGeoData={backgroundGeoData}
                         layerKey={activeLayerKey}
@@ -510,7 +521,7 @@ export default function PimView({ isStaff, geoData }) {
                                     </div>
 
                                     {/* Enlargement Action */}
-                                    {lotGeoData?.metadata?.has_enlargement && (
+                                    {selectedLot?.properties?.has_enlargement && (
                                         <div className="lot-enlargement-box">
                                             <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
                                             <button onClick={handleLoadEnlargement} className="enlarge-btn">

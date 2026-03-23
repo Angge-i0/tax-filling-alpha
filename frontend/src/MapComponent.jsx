@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import { Plus, Minus, Maximize, Locate } from 'lucide-react'
 
 // Safer GeoJSON wrapper to catch errors during feature processing
-function MapContent({ geoData, error, onFeatureSelect, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
+function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
   const map = useMap()
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
@@ -140,7 +140,12 @@ function MapContent({ geoData, error, onFeatureSelect, selectedFeature, isCad, l
 
     layer.on('click', (e) => {
       L.DomEvent.stopPropagation(e);
+      // Always clear any previously opened enlargement popup.
+      map.closePopup();
       onFeatureSelect(feature);
+      if (props.has_enlargement) {
+        layer.openPopup();
+      }
     });
 
     // Safe Tooltip Binding
@@ -155,6 +160,38 @@ function MapContent({ geoData, error, onFeatureSelect, selectedFeature, isCad, l
         const owner = props.owner || 'Unknown';
         const pin = props.pin || props.PIN || 'N/A';
         layer.bindTooltip(`LOT: ${pin}<br/>${owner}`, { sticky: true });
+        if (props.has_enlargement) {
+          const popupWrap = L.DomUtil.create('div');
+          const popupTitle = L.DomUtil.create('b', '', popupWrap);
+          popupTitle.textContent = 'Enlargement available';
+          popupWrap.appendChild(document.createElement('br'));
+
+          const popupButton = L.DomUtil.create('button', 'popup-enlarge-btn', popupWrap);
+          popupButton.type = 'button';
+          popupButton.textContent = 'SEE ENLARGEMENT';
+          popupButton.style.marginTop = '6px';
+          popupButton.style.padding = '6px 10px';
+          popupButton.style.border = '0';
+          popupButton.style.borderRadius = '6px';
+          popupButton.style.background = '#d97706';
+          popupButton.style.color = '#fff';
+          popupButton.style.fontWeight = '700';
+          popupButton.style.cursor = 'pointer';
+
+          L.DomEvent.disableClickPropagation(popupWrap);
+          L.DomEvent.disableScrollPropagation(popupWrap);
+          L.DomEvent.on(popupButton, 'mousedown', L.DomEvent.stop);
+          L.DomEvent.on(popupButton, 'mouseup', L.DomEvent.stop);
+          L.DomEvent.on(popupButton, 'touchstart', L.DomEvent.stop);
+          L.DomEvent.on(popupButton, 'pointerdown', L.DomEvent.stop);
+          L.DomEvent.on(popupButton, 'click', (clickEvt) => {
+            L.DomEvent.stop(clickEvt);
+            if (onEnlargementRequest) onEnlargementRequest(feature);
+            map.closePopup();
+          });
+
+          layer.bindPopup(popupWrap, { closeOnClick: true, autoClose: true, autoPan: true });
+        }
       } else if (props.ADM4_EN) {
         layer.bindTooltip(`<b>${props.ADM4_EN}</b>`, { sticky: true });
       }
@@ -275,7 +312,7 @@ function MapContent({ geoData, error, onFeatureSelect, selectedFeature, isCad, l
   )
 }
 
-export default function MapComponent({ geoData, error, onFeatureSelect, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
+export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic }) {
   return (
     <MapContainer
       style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, background: '#f1f5f9' }}
@@ -293,6 +330,7 @@ export default function MapComponent({ geoData, error, onFeatureSelect, selected
         geoData={geoData}
         error={error}
         onFeatureSelect={onFeatureSelect}
+        onEnlargementRequest={onEnlargementRequest}
         selectedFeature={selectedFeature}
         isCad={isCad}
         legend={legend}
