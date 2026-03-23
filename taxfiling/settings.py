@@ -1,8 +1,25 @@
 from datetime import timedelta
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# GeoDjango (PostGIS backend) requires native GDAL/GEOS DLLs on Windows.
+# If you installed OSGeo4W/QGIS somewhere else (a common "wrong install path"
+# issue), update these two paths to point at the actual DLLs on your machine.
+GEOS_LIBRARY_PATH = r"D:\osgeo4w\bin\geos_c.dll"
+GDAL_LIBRARY_PATH = r"D:\osgeo4w\bin\gdal312.dll"
+OSGEO4W_BIN = r"D:\osgeo4w\bin"
+OSGEO4W_PROJ = r"D:\osgeo4w\share\proj"
+OSGEO4W_GDAL = r"D:\osgeo4w\share\gdal"
+
+# Force GeoDjango/GDAL to use OSGeo4W data files (avoid old PostGIS PROJ db).
+os.environ["PROJ_LIB"] = OSGEO4W_PROJ
+os.environ["PROJ_DATA"] = OSGEO4W_PROJ
+os.environ["GDAL_DATA"] = OSGEO4W_GDAL
+if OSGEO4W_BIN not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = OSGEO4W_BIN + os.pathsep + os.environ.get("PATH", "")
 
 
 # Quick-start development settings - unsuitable for production
@@ -29,6 +46,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'maps',
+    "django.contrib.gis",
     'corsheaders',
 ]
 
@@ -81,12 +99,31 @@ WSGI_APPLICATION = 'taxfiling.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Explicit environment-driven DB config.
+# Defaults below are only for local development.
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_NAME = os.getenv("DB_NAME", "taxfiling")
+DB_USER = os.getenv("DB_USER", "taxuser")
+DB_PORT = os.getenv("DB_PORT", "5433")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+if not DB_PASSWORD:
+    if DEBUG:
+        DB_PASSWORD = "pops1245"
+    else:
+        raise RuntimeError("DB_PASSWORD is required when DEBUG=False")
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": DB_NAME,
+        "USER": DB_USER,
+        "PASSWORD": DB_PASSWORD,
+        "HOST": DB_HOST,
+        "PORT": DB_PORT,
     }
 }
+
 
 
 # Password validation

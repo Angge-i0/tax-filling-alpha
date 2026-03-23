@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.gis.db import models as gis_models
 
 # ... existing models (Barangay, Section, Lot, Issue) ...
 
@@ -91,3 +92,50 @@ class Issue(models.Model):
 
     def __str__(self):
         return f"[{self.status}] {self.description[:60]}"
+
+
+class CadAlalum(gis_models.Model):
+    id = models.BigIntegerField(primary_key=True)
+    geom = gis_models.GeometryField(srid=4326)
+
+    class Meta:
+        managed = False
+        db_table = 'cad_alalum'
+
+
+class PimBarangayBoundary(gis_models.Model):
+    id = models.BigAutoField(primary_key=True)
+    barangay_name = models.TextField()
+    source_file = models.TextField()
+    properties = models.JSONField(default=dict)
+    geom = gis_models.MultiPolygonField(srid=4326)
+
+    class Meta:
+        managed = False
+        db_table = 'pim_barangay_boundaries'
+
+
+class PimSection(gis_models.Model):
+    id = models.BigAutoField(primary_key=True)
+    barangay_name = models.TextField()
+    section_number = models.IntegerField()
+    source_file = models.TextField()
+    properties = models.JSONField(default=dict)
+    geom = gis_models.MultiPolygonField(srid=4326)
+
+    class Meta:
+        managed = False
+        db_table = 'pim_sections'
+
+
+class PimEnlargement(gis_models.Model):
+    id = models.BigAutoField(primary_key=True)
+    barangay_name = models.TextField()
+    section_number = models.IntegerField()
+    source_file = models.TextField()
+    properties = models.JSONField(default=dict)
+    geom = gis_models.MultiPolygonField(srid=4326)
+
+    class Meta:
+        managed = False
+        db_table = 'pim_enlargements'

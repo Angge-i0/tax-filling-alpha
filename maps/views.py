@@ -7,7 +7,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from collections import Counter
-from .models import Barangay, Section, Lot, Issue
+from django.contrib.gis.db.models.aggregates import Union
+from .models import Barangay, Section, Lot, Issue, CadAlalum
 import geopandas as gpd
 import pandas as pd
 
@@ -110,69 +111,27 @@ def geojson_data(request):
 @api_login_required
 def cad_geojson_data(request):
     """
-    Collects all GPKG files from maps/static/CAD/, dissolves each into a single
-    barangay polygon, and returns the combined GeoJSON for the CAD Overview.
+    Returns CAD overview geometry from PostGIS table cad_alalum.
     """
-    cad_dir = os.path.join(settings.BASE_DIR, 'maps/static/CAD')
-    
-    if not os.path.exists(cad_dir):
-        return JsonResponse({'error': 'CAD directory not found.'}, status=404)
-        
     try:
-        gpkg_files = [f for f in os.listdir(cad_dir) if f.lower().endswith('.gpkg')]
-        if not gpkg_files:
-            return JsonResponse({'error': 'No CAD files found.'}, status=404)
+        union_geom = CadAlalum.objects.aggregate(geom=Union('geom')).get('geom')
+        if union_geom is None:
+            return JsonResponse({'error': 'No CAD data found in PostGIS table cad_alalum.'}, status=404)
 
-        all_gdfs = []
-        NAME_MAP = {
-            'Sta. Elena': 'Santa Elena',
-            'Sta Elena': 'Santa Elena',
-            'Sto. Nino': 'Santo Niño',
-            'Sto Nino': 'Santo Niño',
-            'Ilat': 'Ilat North',
-            'PADRE CASTILLO': 'Padre Castillo',
-            'Brgy San Antonio': 'San Antonio',
-            'San mateo': 'San Mateo',
-        }
-
-        for filename in gpkg_files:
-            file_path = os.path.join(cad_dir, filename)
-            try:
-                gdf = gpd.read_file(file_path, engine='pyogrio')
-                if gdf.empty:
-                    continue
-                
-                # Assign Barangay name from filename if column missing
-                base_name = os.path.splitext(filename)[0]
-                brgy_name = NAME_MAP.get(base_name, base_name)
-                
-                # Clean up name
-                brgy_name = brgy_name.replace('Brgy ', '').replace('Brgy. ', '').strip()
-                if brgy_name.isupper():
-                    brgy_name = brgy_name.title()
-
-                if 'ADM4_EN' not in gdf.columns:
-                    gdf['ADM4_EN'] = brgy_name
-                
-                # Fix topology and reproject
-                gdf.geometry = gdf.geometry.buffer(0)
-                if gdf.crs is None:
-                    gdf.set_crs('EPSG:3123', inplace=True)
-                gdf = gdf.to_crs('EPSG:4326')
-                
-                # Dissolve into a single boundary for the overview
-                dissolved = gdf.dissolve(by='ADM4_EN').reset_index()
-                all_gdfs.append(dissolved[['ADM4_EN', 'geometry']])
-            except Exception as e:
-                print(f"Error processing CAD file {filename}: {e}")
-
-        if not all_gdfs:
-            return JsonResponse({'error': 'Failed to process any CAD data.'}, status=500)
-
-        combined = gpd.GeoDataFrame(pd.concat(all_gdfs, ignore_index=True))
-        combined.set_crs('EPSG:4326', inplace=True)
-        
-        return JsonResponse(json.loads(combined.to_json()))
+        color = Barangay.objects.filter(name__iexact='Alalum').values_list('color', flat=True).first() or '#3388ff'
+        return JsonResponse({
+            'type': 'FeatureCollection',
+            'features': [
+                {
+                    'type': 'Feature',
+                    'properties': {
+                        'ADM4_EN': 'Alalum',
+                        'color': color,
+                    },
+                    'geometry': json.loads(union_geom.geojson),
+                }
+            ],
+        })
     except Exception as e:
         return JsonResponse({'error': f'CAD processing failed: {str(e)}'}, status=500)
 
@@ -312,3 +271,4 @@ def section_lots(request, section_id):
         'section_number': section.number,
         'lots': lots,
     })
+

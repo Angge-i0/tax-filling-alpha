@@ -1,88 +1,201 @@
 # Tax Filling Project
 
-A full-stack application for tax filling, featuring a Django backend and a React (Vite) frontend.
+This is a step-by-step setup guide for Windows using Docker (recommended).
 
-## Prerequisites
+## What you are setting up
 
-Before you begin, ensure you have the following installed on your system:
+- Django backend (Python)
+- React frontend (Vite)
+- PostgreSQL + PostGIS in Docker
+- pgAdmin in Docker (database GUI)
 
-### 1. Node.js
-- **Purpose**: Required to run the frontend development server and manage npm packages.
-- **Download**: [Download Node.js](https://nodejs.org/) (Recommended: LTS version).
-- **Verify**: Run `node -v` in your terminal.
+## 1. Install required software
 
-### 2. Python
-- **Purpose**: Required for the Django backend.
-- **Download**: [Download Python](https://www.python.org/) (Version 3.8 or higher recommended).
-- **Verify**: Run `python --version` in your terminal.
+Install these first:
 
----
+1. Docker Desktop
+2. Python (3.11 or 3.12 recommended)
+3. Node.js (LTS)
+4. OSGeo4W (for `ogr2ogr`, optional until you import `.gpkg`)
 
-## Project Setup
+## 2. Open the project folder
 
-### 1. Backend Setup (Django)
+```bat
+cd D:\geodetic_thesis\tax-filling-alpha
+```
 
-1. **Open a terminal** at the project root (`d:\tax filling proj`).
-2. **Create a virtual environment**:
-   ```powershell
-   python -m venv venv
-   ```
-3. **Activate the virtual environment**:
-   - **Windows**: `.\venv\Scripts\activate`
-   - **macOS/Linux**: `source venv/bin/activate`
-4. **Install dependencies**:
-   ```powershell
-   pip install -r requirements.txt
-   ```
+## 3. Start database containers (PostGIS + pgAdmin)
 
-5. **Install geopandas**:
-   ```powershell
-   pip install 'geopandas[all]'
-   ```
+```bat
+docker compose up -d
+docker compose ps
+```
 
-6. **Run Migrations**:
-   ```powershell
-   python manage.py migrate
-   ```
+You should see:
+- `taxfiling-postgis` running on `5433`
+- `taxfiling-pgadmin` running on `5050`
 
-### 2. Frontend Setup (React + Vite)
+## 4. Enable PostGIS extension in the database
 
-1. **Navigate to the frontend directory**:
-   ```powershell
-   cd frontend
-   ```
-2. **Install dependencies**:
-   ```powershell
-   npm install
-   ```
+```bat
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT PostGIS_Full_Version();"
+```
 
----
+## 5. Set up Python backend
 
-## Running the Application
-
-You will need two terminal windows open simultaneously:
-
-### Terminal 1: Backend
-From the project root (with `venv` activated):
-```powershell
+```bat
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
 python manage.py runserver
 ```
-The backend will be available at `http://127.0.0.1:8000/`.
 
-### Terminal 2: Frontend
-From the `frontend` directory:
-```powershell
+Backend URL: `http://127.0.0.1:8000`
+
+## 6. Set up frontend
+
+Open a second terminal:
+
+```bat
+cd D:\geodetic_thesis\tax-filling-alpha\frontend
+npm install
 npm run dev
 ```
-The frontend will be available at the URL provided in the terminal (usually `http://localhost:5173/`).
 
----
+Frontend URL: usually `http://localhost:5173`
 
-## Project Structure
+## 7. Use pgAdmin (GUI for database)
 
-- `taxfiling/`: Django project configuration.
-- `maps/`: Django app for map-related functionality.
-- `frontend/`: React frontend application (Vite).
-- `manage.py`: Django management script.
-- `requirements.txt`: Python package dependencies.
-- `db.sqlite3`: Local SQLite database.
+Open:
+- `http://localhost:5050`
+
+Login:
+- Email: `admin@example.com`
+- Password: `admin123`
+
+Add server:
+
+1. Right-click `Servers` -> `Register` -> `Server...`
+2. In `General` tab, set Name: `taxfiling-db`
+3. In `Connection` tab use:
+   - Host name/address: `db`
+   - Port: `5432`
+   - Maintenance DB: `taxfiling`
+   - Username: `taxuser`
+   - Password: `pops1245`
+4. Click `Save`
+
+## 8. Import a `.gpkg` file into PostGIS
+
+If `ogr2ogr` is not recognized, run this first in the same terminal:
+
+```bat
+set PATH=D:\osgeo4w\bin;%PATH%
+set PROJ_LIB=D:\osgeo4w\share\proj
+set PROJ_DATA=D:\osgeo4w\share\proj
+set GDAL_DATA=D:\osgeo4w\share\gdal
+ogr2ogr --version
+```
+
+Then import sample file:
+
+```bat
+ogr2ogr --config PROJ_DATA "D:\osgeo4w\share\proj" --config GDAL_DATA "D:\osgeo4w\share\gdal" -f PostgreSQL PG:"host=localhost port=5433 dbname=taxfiling user=taxuser password=pops1245" "D:\geodetic_thesis\tax-filling-alpha\maps\static\CAD\Alalum.gpkg" -nln cad_alalum -lco GEOMETRY_NAME=geom -lco FID=id -s_srs EPSG:3123 -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI -makevalid -skipfailures
+```
+
+Verify import:
+
+```bat
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM cad_alalum;"
+```
+
+## 9. Recommended: import all maps with folder-aware structure
+
+This repo includes:
+- `scripts/postgis_schema.sql` (creates normalized map tables)
+- `scripts/import_gpkg_to_postgis.ps1` (imports all `maps/static` GeoPackages)
+
+Run from project root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
+```
+
+It imports into:
+- `cad_maps` from `maps/static/CAD/*.gpkg`
+- `pim_barangay_boundaries` from `maps/static/PIM/*.gpkg`
+- `pim_sections` from `maps/static/PIM/*/sections/*.gpkg`
+- `pim_enlargements` from `maps/static/PIM/*/enlargements/*.gpkg`
+
+This keeps DB data aligned with your folder structure.
+
+## 10. Current Django DB behavior
+
+`taxfiling/settings.py` is already configured to auto-switch:
+
+- Uses Docker DB at `localhost:5433` if reachable
+- Falls back to local PostgreSQL at `localhost:5432`
+
+You can also override with env vars:
+- `DB_HOST`
+- `DB_PORT`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+
+## 11. Useful checks
+
+List database roles/users:
+
+```sql
+\du
+```
+
+See users registered from the website:
+
+```sql
+\c taxfiling
+SELECT id, username, email, is_staff, is_superuser, date_joined
+FROM auth_user
+ORDER BY id DESC;
+```
+
+Check map row counts:
+
+```sql
+SELECT COUNT(*) FROM cad_maps;
+SELECT COUNT(*) FROM pim_barangay_boundaries;
+SELECT COUNT(*) FROM pim_sections;
+SELECT COUNT(*) FROM pim_enlargements;
+```
+
+## 12. Common problems
+
+### `http://localhost:5050` not opening
+
+Run:
+
+```bat
+docker compose ps
+docker logs taxfiling-pgadmin
+```
+
+If `pgadmin` is restarting, check email/password config in `docker-compose.yml`.
+
+### `'ogr2ogr' is not recognized`
+
+Add `D:\osgeo4w\bin` to PATH in that terminal (see step 8).
+
+### `proj.db ... from another PROJ installation`
+
+Set `PROJ_LIB`, `PROJ_DATA`, and `GDAL_DATA` to `D:\osgeo4w\share\...` (step 8).
+
+### `Could not find the GDAL library`
+
+Check these exist:
+- `D:\osgeo4w\bin\gdal312.dll`
+- `D:\osgeo4w\bin\geos_c.dll`
+
+Check paths in `taxfiling/settings.py`.

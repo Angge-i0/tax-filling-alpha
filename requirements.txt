@@ -8,3 +8,4 @@ pyogrio
 rtree
 pyproj
 shapely
+psycopg[binary]
