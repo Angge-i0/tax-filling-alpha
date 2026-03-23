@@ -12,7 +12,6 @@ import Header from './Header'
 import PimView from './PimView';
 import Maintenance from './Maintenance';
 import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToken } from './api'
-import gadcSidebarLogo from './assets/GADC SIDEBAR.png'
 import './App.css'
 import ErrorBoundary from './ErrorBoundary'
 

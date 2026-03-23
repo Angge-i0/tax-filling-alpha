@@ -978,7 +978,7 @@ body {
 .lp-bg {
   position: absolute;
   inset: -20px;
-  background-image: url('/blurred_bg.png');
+  background-image: url('/login_bg.png');
   background-size: cover;
   background-position: center;
 }

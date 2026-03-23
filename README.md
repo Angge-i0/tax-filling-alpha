@@ -171,7 +171,38 @@ SELECT COUNT(*) FROM pim_sections;
 SELECT COUNT(*) FROM pim_enlargements;
 ```
 
-## 12. Common problems
+## 12. Sync DB to another device
+
+### Backup and restore (simplest)
+
+On laptop A:
+
+```bat
+docker exec -t taxfiling-postgis pg_dump -U taxuser -d taxfiling > taxfiling.sql
+```
+
+Copy `taxfiling.sql` to laptop B.
+
+On laptop B:
+
+```bat
+docker exec -i taxfiling-postgis psql -U taxuser -d taxfiling < taxfiling.sql
+```
+
+This is the easiest sync method.
+
+### Share SQL dump via cloud
+
+Save `taxfiling.sql` in Google Drive / OneDrive / Git LFS / private storage.
+Import on the other device whenever needed.
+
+### Expose one device as central DB (advanced)
+
+One machine hosts PostgreSQL and other devices connect over network.
+This needs static IP, firewall rules, strong passwords, and SSL/VPN.
+Good for real-time shared DB, but more setup and security work.
+
+## 13. Common problems
 
 ### `http://localhost:5050` not opening
 
