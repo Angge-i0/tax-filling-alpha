@@ -103,6 +103,18 @@ class CadAlalum(gis_models.Model):
         db_table = 'cad_alalum'
 
 
+class CadMap(gis_models.Model):
+    id = models.BigAutoField(primary_key=True)
+    barangay_name = models.TextField()
+    source_file = models.TextField()
+    properties = models.JSONField(default=dict)
+    geom = gis_models.MultiPolygonField(srid=4326)
+
+    class Meta:
+        managed = False
+        db_table = 'cad_maps'
+
+
 class PimBarangayBoundary(gis_models.Model):
     id = models.BigAutoField(primary_key=True)
     barangay_name = models.TextField()

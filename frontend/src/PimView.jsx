@@ -9,7 +9,7 @@ const ALL_BARANGAYS = [
     'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
     'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
     'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
-    'San Mariano', 'San Mateo', 'Santa Elena', 'Santo Niño'
+    'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
 export default function PimView({ isStaff, geoData }) {

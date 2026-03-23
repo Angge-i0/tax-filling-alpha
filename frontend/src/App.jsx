@@ -405,8 +405,8 @@ const CAD_LEGEND = [
   { name: 'Pook ni Banal', color: '#2f9e44' }, { name: 'Pook ni Kapitan', color: '#f08c00' },
   { name: 'Resplandor', color: '#1971c2' }, { name: 'Sambat', color: '#e8590c' },
   { name: 'San Antonio', color: '#0ca678' }, { name: 'San Mariano', color: '#66a80f' },
-  { name: 'San Mateo', color: '#3bc9db' }, { name: 'Santa Elena', color: '#b197fc' },
-  { name: 'Santo Niño', color: '#fcc419' },
+  { name: 'San Mateo', color: '#3bc9db' }, { name: 'Sta. Elena', color: '#b197fc' },
+  { name: 'Sto. Nino', color: '#fcc419' },
 ];
 
 function CadMap({ geoData, error, isStaff }) {

@@ -1,16 +1,43 @@
 from django.http import JsonResponse
 from django.utils import timezone
 import json
-from django.conf import settings
-import os
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from collections import Counter
 from django.contrib.gis.db.models.aggregates import Union
-from .models import Barangay, Section, Lot, Issue, CadAlalum
-import geopandas as gpd
-import pandas as pd
+from django.contrib.gis.geos import Polygon
+from .models import Barangay, Section, Lot, Issue, CadMap, PimBarangayBoundary, PimSection
+
+
+BARANGAY_NAME_MAP = {
+    'sta. elena': 'Sta. Elena',
+    'sta elena': 'Sta. Elena',
+    'santa elena': 'Sta. Elena',
+    'sto. nino': 'Sto. Nino',
+    'sto nino': 'Sto. Nino',
+    'sto niño': 'Sto. Nino',
+    'sto. niño': 'Sto. Nino',
+    'santo nino': 'Sto. Nino',
+    'santo niño': 'Sto. Nino',
+    'ilat': 'Ilat North',
+    'natunuan': 'Natunuan South',
+    'poblacion 1': 'Poblacion',
+    'poblacion 2': 'Poblacion',
+    'poblacion 3': 'Poblacion',
+    'poblacion 4': 'Poblacion',
+}
+
+
+def _canonical_barangay_name(name: str) -> str:
+    key = " ".join((name or '').strip().lower().split())
+    return BARANGAY_NAME_MAP.get(key, (name or '').strip())
+
+
+# Defensive map extent filter: keeps only San Pascual / nearby Batangas data
+# so malformed outlier geometries do not break fitBounds in the frontend.
+SAN_PASCUAL_BBOX = Polygon.from_bbox((120.0, 13.0, 122.0, 14.5))
+SAN_PASCUAL_BBOX.srid = 4326
 
 
 def api_login_required(view_func):
@@ -36,74 +63,51 @@ def api_login_required(view_func):
 @api_login_required
 def geojson_data(request):
     """
-    Serves the PIM boundaries by loading all GPKG files from maps/static/PIM/.
-    Each file is reprojected, dissolved, and assigned a color from the database.
+    Serves municipality-level PIM boundaries from PostGIS.
     """
-    pim_dir = os.path.join(settings.BASE_DIR, 'maps/static/PIM')
-    
-    if not os.path.exists(pim_dir):
-        # Fallback to old path if PIM dir is missing
-        old_file_path = os.path.join(settings.BASE_DIR, 'maps/static/maps/nasugbu.geojson')
-        if not os.path.exists(old_file_path):
-            return JsonResponse({'error': 'Map data not found.'}, status=404)
-        with open(old_file_path) as f:
-            return JsonResponse(json.load(f))
-            
     try:
-        gpkg_files = [f for f in os.listdir(pim_dir) if f.lower().endswith('.gpkg')]
-        if not gpkg_files:
-            return JsonResponse({'error': 'No GPKG files found in PIM directory.'}, status=404)
+        rows = (
+            PimSection.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
+            .values('barangay_name')
+            .annotate(geom=Union('geom'))
+            .order_by('barangay_name')
+        )
+        rows = list(rows)
+        if not rows:
+            rows = list(
+                PimBarangayBoundary.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
+                .values('barangay_name')
+                .annotate(geom=Union('geom'))
+                .order_by('barangay_name')
+            )
+        if not rows:
+            return JsonResponse({'error': 'No PIM boundaries found in PostGIS.'}, status=404)
 
-        all_gdfs = []
-        # Pre-fetch colors to minimize database queries
-        try:
-            brgy_colors = {b.name.lower(): b.color for b in Barangay.objects.all()}
-        except Exception as e:
-            # Fallback if table doesn't exist yet or other DB issue
-            print(f"Database error fetching barangay colors: {e}")
-            brgy_colors = {}
-        
-        for filename in gpkg_files:
-            file_path = os.path.join(pim_dir, filename)
-            try:
-                # Use pyogrio engine for speed
-                gdf = gpd.read_file(file_path, engine='pyogrio')
-                if gdf.empty:
-                    continue
-                    
-                # Fix potential topology issues before dissolve
-                gdf.geometry = gdf.geometry.buffer(0)
-                    
-                # Ensure correct CRS (PRS92 / Philippines zone 3) and reproject for web
-                if gdf.crs is None:
-                    gdf.set_crs('EPSG:3123', inplace=True)
-                gdf = gdf.to_crs('EPSG:4326')
-                
-                # Dissolve geometries to show the whole barangay instead of individual lots
-                # Group by ADM4_EN if present, otherwise fallback to filename
-                if 'ADM4_EN' in gdf.columns:
-                    gdf = gdf.dissolve(by='ADM4_EN').reset_index()
-                else:
-                    brgy_name = os.path.splitext(filename)[0]
-                    gdf['ADM4_EN'] = brgy_name
-                    gdf = gdf.dissolve(by='ADM4_EN').reset_index()
-                
-                # Assign color based on Barangay name
-                gdf['color'] = gdf['ADM4_EN'].map(lambda x: brgy_colors.get(x.lower(), '#3388ff'))
-                
-                # Ensure we only have necessary columns to keep JSON clean
-                all_gdfs.append(gdf[['ADM4_EN', 'geometry', 'color']])
-            except Exception as e:
-                print(f"Error processing {filename}: {e}")
-                
-        if not all_gdfs:
-            return JsonResponse({'error': 'Failed to process any map data.'}, status=500)
-            
-        # Combine all barangays into a single GeoDataFrame
-        combined_gdf = gpd.GeoDataFrame(pd.concat(all_gdfs, ignore_index=True))
-        combined_gdf.set_crs('EPSG:4326', inplace=True)
-        
-        return JsonResponse(json.loads(combined_gdf.to_json()))
+        brgy_colors = {b.name.lower(): b.color for b in Barangay.objects.all()}
+        by_name = {}
+        for row in rows:
+            raw_name = row['barangay_name']
+            canonical = _canonical_barangay_name(raw_name)
+            geom = row.get('geom')
+            if geom is None:
+                continue
+            if canonical in by_name:
+                by_name[canonical] = by_name[canonical].union(geom)
+            else:
+                by_name[canonical] = geom
+
+        features = []
+        for canonical_name, geom in by_name.items():
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'ADM4_EN': canonical_name,
+                    'color': brgy_colors.get(canonical_name.lower(), '#3388ff'),
+                },
+                'geometry': json.loads(geom.geojson),
+            })
+
+        return JsonResponse({'type': 'FeatureCollection', 'features': features})
     except Exception as e:
         return JsonResponse({'error': f'Failed to load PIM map: {str(e)}'}, status=500)
 
@@ -111,27 +115,44 @@ def geojson_data(request):
 @api_login_required
 def cad_geojson_data(request):
     """
-    Returns CAD overview geometry from PostGIS table cad_alalum.
+    Returns CAD overview geometry from PostGIS table cad_maps.
     """
     try:
-        union_geom = CadAlalum.objects.aggregate(geom=Union('geom')).get('geom')
-        if union_geom is None:
-            return JsonResponse({'error': 'No CAD data found in PostGIS table cad_alalum.'}, status=404)
+        rows = (
+            CadMap.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
+            .values('barangay_name')
+            .annotate(geom=Union('geom'))
+            .order_by('barangay_name')
+        )
+        rows = list(rows)
+        if not rows:
+            return JsonResponse({'error': 'No CAD data found in PostGIS table cad_maps.'}, status=404)
 
-        color = Barangay.objects.filter(name__iexact='Alalum').values_list('color', flat=True).first() or '#3388ff'
-        return JsonResponse({
-            'type': 'FeatureCollection',
-            'features': [
-                {
-                    'type': 'Feature',
-                    'properties': {
-                        'ADM4_EN': 'Alalum',
-                        'color': color,
-                    },
-                    'geometry': json.loads(union_geom.geojson),
-                }
-            ],
-        })
+        brgy_colors = {b.name.lower(): b.color for b in Barangay.objects.all()}
+        by_name = {}
+        for row in rows:
+            raw_name = row['barangay_name']
+            canonical = _canonical_barangay_name(raw_name)
+            geom = row.get('geom')
+            if geom is None:
+                continue
+            if canonical in by_name:
+                by_name[canonical] = by_name[canonical].union(geom)
+            else:
+                by_name[canonical] = geom
+
+        features = []
+        for canonical_name, geom in by_name.items():
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'ADM4_EN': canonical_name,
+                    'color': brgy_colors.get(canonical_name.lower(), '#3388ff'),
+                },
+                'geometry': json.loads(geom.geojson),
+            })
+
+        return JsonResponse({'type': 'FeatureCollection', 'features': features})
     except Exception as e:
         return JsonResponse({'error': f'CAD processing failed: {str(e)}'}, status=500)
 

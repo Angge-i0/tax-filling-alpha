@@ -9,13 +9,21 @@ Tables:
 import json
 import math
 import re
-from django.db.models import Count, Min
+from django.db.models import Count, Min, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.gis.db.models.aggregates import Union
 
 from .models import PimSection, PimEnlargement
 from .views import api_login_required
+
+BARANGAY_VARIANTS = {
+    'Sta. Elena': ['Sta. Elena', 'Sta Elena', 'Santa Elena'],
+    'Sto. Nino': ['Sto. Nino', 'Sto Nino', 'Sto Niño', 'Sto. Niño', 'Santo Nino', 'Santo Niño'],
+    'Ilat North': ['Ilat North', 'Ilat'],
+    'Natunuan South': ['Natunuan South', 'Natunuan'],
+    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
+}
 
 # Column name normalisation for frontend consistency.
 COLUMN_MAP = {
@@ -113,6 +121,30 @@ def _extract_section_number(filename):
     return 0
 
 
+def _canonical_barangay_name(name: str) -> str:
+    cleaned = " ".join((name or '').strip().split())
+    for canonical, variants in BARANGAY_VARIANTS.items():
+        for variant in variants:
+            if cleaned.lower() == variant.lower():
+                return canonical
+    return cleaned
+
+
+def _barangay_variants(requested: str) -> list[str]:
+    canonical = _canonical_barangay_name(requested)
+    if canonical in BARANGAY_VARIANTS:
+        return BARANGAY_VARIANTS[canonical]
+    return [canonical]
+
+
+def _filter_by_barangay(queryset, requested_barangay: str):
+    variants = _barangay_variants(requested_barangay)
+    condition = Q()
+    for variant in variants:
+        condition |= Q(barangay_name__iexact=variant)
+    return queryset.filter(condition), _canonical_barangay_name(requested_barangay)
+
+
 def _feature_from_geom(geom, properties):
     return {
         'type': 'Feature',
@@ -124,27 +156,33 @@ def _feature_from_geom(geom, properties):
 @api_login_required
 @require_http_methods(["GET"])
 def pim_barangay_list(request):
-    rows = (
+    rows_raw = (
         PimSection.objects.values('barangay_name')
         .annotate(section_count=Count('section_number', distinct=True))
         .order_by('barangay_name')
     )
-    barangays = [
-        {
-            'name': row['barangay_name'],
-            'section_count': row['section_count'],
-            'has_data': row['section_count'] > 0,
-        }
-        for row in rows
-    ]
+    grouped = {}
+    for row in rows_raw:
+        canonical = _canonical_barangay_name(row['barangay_name'])
+        grouped[canonical] = grouped.get(canonical, 0) + row['section_count']
+
+    barangays = []
+    for canonical, section_count in sorted(grouped.items()):
+        barangays.append({
+            'name': canonical,
+            'section_count': section_count,
+            'has_data': section_count > 0,
+        })
+
     return JsonResponse({'barangays': barangays})
 
 
 @api_login_required
 @require_http_methods(["GET"])
 def pim_barangay_geojson(request, barangay_name):
+    sections_qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
     sections = (
-        PimSection.objects.filter(barangay_name__iexact=barangay_name)
+        sections_qs
         .values('section_number')
         .annotate(geom=Union('geom'))
         .order_by('section_number')
@@ -162,7 +200,7 @@ def pim_barangay_geojson(request, barangay_name):
             _feature_from_geom(
                 geom,
                 {
-                    'barangay': barangay_name,
+                    'barangay': canonical_name,
                     'section_number': row['section_number'],
                     'section_color': SECTION_COLORS[idx % len(SECTION_COLORS)],
                 },
@@ -178,23 +216,19 @@ def pim_barangay_geojson(request, barangay_name):
 @api_login_required
 @require_http_methods(["GET"])
 def pim_section_lots_geojson(request, barangay_name, section_number):
-    lots_qs = PimSection.objects.filter(
-        barangay_name__iexact=barangay_name,
-        section_number=section_number,
-    ).order_by('id')
+    section_base_qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
+    lots_qs = section_base_qs.filter(section_number=section_number).order_by('id')
 
     if not lots_qs.exists():
         return JsonResponse({'error': f'Section {section_number} not found.'}, status=404)
 
-    has_enlargement = PimEnlargement.objects.filter(
-        barangay_name__iexact=barangay_name,
-        section_number=section_number,
-    ).exists()
+    enlargement_base_qs, _ = _filter_by_barangay(PimEnlargement.objects, barangay_name)
+    has_enlargement = enlargement_base_qs.filter(section_number=section_number).exists()
 
     features = []
     for row in lots_qs:
         props = _normalise_properties(row.properties)
-        props['barangay'] = barangay_name
+        props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))
 
@@ -202,7 +236,7 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
         'type': 'FeatureCollection',
         'features': features,
         'metadata': {
-            'barangay': barangay_name,
+            'barangay': canonical_name,
             'section_number': section_number,
             'lot_count': len(features),
             'has_enlargement': has_enlargement,
@@ -214,10 +248,8 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
 @api_login_required
 @require_http_methods(["GET"])
 def pim_enlargement_geojson(request, barangay_name, section_number):
-    lots_qs = PimEnlargement.objects.filter(
-        barangay_name__iexact=barangay_name,
-        section_number=section_number,
-    ).order_by('id')
+    enlargement_base_qs, canonical_name = _filter_by_barangay(PimEnlargement.objects, barangay_name)
+    lots_qs = enlargement_base_qs.filter(section_number=section_number).order_by('id')
 
     if not lots_qs.exists():
         return JsonResponse({'error': f'No enlargement for section {section_number}.'}, status=404)
@@ -225,7 +257,7 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
     features = []
     for row in lots_qs:
         props = _normalise_properties(row.properties)
-        props['barangay'] = barangay_name
+        props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))
 
@@ -233,7 +265,7 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
         'type': 'FeatureCollection',
         'features': features,
         'metadata': {
-            'barangay': barangay_name,
+            'barangay': canonical_name,
             'section_number': section_number,
             'lot_count': len(features),
             'is_enlargement': True,
@@ -245,8 +277,9 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
 @api_login_required
 @require_http_methods(["GET"])
 def pim_section_list(request, barangay_name):
+    section_base_qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
     sections_qs = (
-        PimSection.objects.filter(barangay_name__iexact=barangay_name)
+        section_base_qs
         .values('section_number')
         .annotate(lot_count=Count('id'), filename=Min('source_file'))
         .order_by('section_number')
@@ -255,8 +288,9 @@ def pim_section_list(request, barangay_name):
     if not sections_qs:
         return JsonResponse({'error': f'Barangay "{barangay_name}" not found.'}, status=404)
 
+    enlargement_base_qs, _ = _filter_by_barangay(PimEnlargement.objects, barangay_name)
     enlargement_sections = set(
-        PimEnlargement.objects.filter(barangay_name__iexact=barangay_name)
+        enlargement_base_qs
         .values_list('section_number', flat=True)
         .distinct()
     )
@@ -272,6 +306,6 @@ def pim_section_list(request, barangay_name):
     ]
 
     return JsonResponse({
-        'barangay': barangay_name,
+        'barangay': canonical_name,
         'sections': sections,
     })

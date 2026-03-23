@@ -17,6 +17,25 @@ function Escape-SqlLiteral([string]$value) {
     return $value.Replace("'", "''")
 }
 
+function Get-NormalizedBarangayName([System.IO.FileInfo]$fileInfo) {
+    $filename = $fileInfo.BaseName
+    $fromFile = [regex]::Match($filename, "^(.*?)\s+[Ss]ection")
+    if ($fromFile.Success) {
+        return $fromFile.Groups[1].Value.Trim()
+    }
+
+    $dir = $fileInfo.Directory
+    if ($dir.Name -ieq "sections" -or $dir.Name -ieq "enlargements") {
+        $raw = $dir.Parent.Name
+    } else {
+        $raw = $dir.Name
+    }
+
+    # Remove trailing notes like "(9 Sections)" or "[...]" from folder names.
+    $clean = ($raw -replace "\s*[\(\[].*$", "").Trim()
+    return $clean
+}
+
 function Invoke-Psql([string]$sql) {
     docker exec -i $ContainerName psql -v ON_ERROR_STOP=1 -U $DbUser -d $DbName -c $sql | Out-Host
 }
@@ -27,6 +46,29 @@ function Import-OneFile([string]$filePath) {
         throw "ogr2ogr.exe not found at $ogr"
     }
 
+    # 1) Try with source CRS auto-detected by GDAL.
+    & $ogr `
+        --config PROJ_DATA $ProjData `
+        --config GDAL_DATA $GdalData `
+        -f PostgreSQL `
+        "PG:host=localhost port=$DbPort dbname=$DbName user=$DbUser password=$DbPassword" `
+        $filePath `
+        -nln "tmp_import" `
+        -overwrite `
+        -lco "GEOMETRY_NAME=geom" `
+        -lco "FID=id" `
+        -t_srs "EPSG:4326" `
+        -nlt "PROMOTE_TO_MULTI" `
+        -makevalid `
+        -skipfailures
+
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    Write-Warning "Auto CRS import failed. Retrying with source EPSG:3123 for file: $filePath"
+
+    # 2) Fallback for files with missing/incorrect source SRS metadata.
     & $ogr `
         --config PROJ_DATA $ProjData `
         --config GDAL_DATA $GdalData `
@@ -78,7 +120,7 @@ Write-Host "Importing PIM barangay boundary files..."
 Get-ChildItem $pimDir -Filter *.gpkg -File | ForEach-Object {
     $file = $_.FullName
     $source = $_.Name
-    $barangay = $_.BaseName
+    $barangay = Get-NormalizedBarangayName $_
     Import-OneFile $file
 
     $barangaySql = Escape-SqlLiteral $barangay
@@ -91,50 +133,54 @@ WHERE t.geom IS NOT NULL;
 "@
 }
 
-Write-Host "Importing PIM section files..."
-Get-ChildItem $pimDir -Recurse -Filter *.gpkg -File | Where-Object { $_.Directory.Name -ieq "sections" } | ForEach-Object {
+Write-Host "Importing PIM files (supports old and new folder layouts)..."
+Get-ChildItem $pimDir -Recurse -Filter *.gpkg -File | ForEach-Object {
     $file = $_.FullName
     $source = $_.Name
-    $barangay = $_.Directory.Parent.Name
+    $barangay = Get-NormalizedBarangayName $_
+    $baseLower = $_.BaseName.ToLowerInvariant()
     $match = [regex]::Match($_.BaseName, "Section\s*(\d+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if (-not $match.Success) {
-        Write-Warning "Skipping section file with no section number: $file"
-        return
-    }
-    $sectionNumber = [int]$match.Groups[1].Value
+
     Import-OneFile $file
 
-    $barangaySql = Escape-SqlLiteral $barangay
-    $sourceSql = Escape-SqlLiteral $source
-    Invoke-Psql @"
-INSERT INTO pim_sections (barangay_name, section_number, source_file, properties, geom)
-SELECT '$barangaySql', $sectionNumber, '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
-FROM tmp_import t
-WHERE t.geom IS NOT NULL;
-"@
-}
-
-Write-Host "Importing PIM enlargement files..."
-Get-ChildItem $pimDir -Recurse -Filter *.gpkg -File | Where-Object { $_.Directory.Name -ieq "enlargements" } | ForEach-Object {
-    $file = $_.FullName
-    $source = $_.Name
-    $barangay = $_.Directory.Parent.Name
-    $match = [regex]::Match($_.BaseName, "Section\s*(\d+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if (-not $match.Success) {
-        Write-Warning "Skipping enlargement file with no section number: $file"
-        return
-    }
-    $sectionNumber = [int]$match.Groups[1].Value
-    Import-OneFile $file
-
-    $barangaySql = Escape-SqlLiteral $barangay
-    $sourceSql = Escape-SqlLiteral $source
-    Invoke-Psql @"
+    if ($baseLower -match "section" -and $baseLower -match "enlargement") {
+        if (-not $match.Success) {
+            Write-Warning "Skipping enlargement file with no section number: $file"
+            return
+        }
+        $sectionNumber = [int]$match.Groups[1].Value
+        $barangaySql = Escape-SqlLiteral $barangay
+        $sourceSql = Escape-SqlLiteral $source
+        Invoke-Psql @"
 INSERT INTO pim_enlargements (barangay_name, section_number, source_file, properties, geom)
 SELECT '$barangaySql', $sectionNumber, '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
 FROM tmp_import t
 WHERE t.geom IS NOT NULL;
 "@
+    } elseif ($baseLower -match "section") {
+        if (-not $match.Success) {
+            Write-Warning "Skipping section file with no section number: $file"
+            return
+        }
+        $sectionNumber = [int]$match.Groups[1].Value
+        $barangaySql = Escape-SqlLiteral $barangay
+        $sourceSql = Escape-SqlLiteral $source
+        Invoke-Psql @"
+INSERT INTO pim_sections (barangay_name, section_number, source_file, properties, geom)
+SELECT '$barangaySql', $sectionNumber, '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
+FROM tmp_import t
+WHERE t.geom IS NOT NULL;
+"@
+    } else {
+        $barangaySql = Escape-SqlLiteral $barangay
+        $sourceSql = Escape-SqlLiteral $source
+        Invoke-Psql @"
+INSERT INTO pim_barangay_boundaries (barangay_name, source_file, properties, geom)
+SELECT '$barangaySql', '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
+FROM tmp_import t
+WHERE t.geom IS NOT NULL;
+"@
+    }
 }
 
 Write-Host "Import complete. Summary:"
