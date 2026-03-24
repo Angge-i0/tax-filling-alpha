@@ -44,7 +44,7 @@ const FAQ_DATA = [
     },
     {
         q: 'What is the difference between Admin and User accounts?',
-        a: 'Admin accounts have full access to the system including user management, issue tracking, report generation, and maintenance features. User accounts have read-only access to the dashboard statistics, charts, and map views, with limited property details (PIN, area, and land use only).'
+        a: 'Admin accounts have full access to the system including user management, issue tracking, and report generation. User accounts have read-only access to the dashboard statistics, charts, and map views, with limited property details (PIN, area, and land use only).'
     },
     {
         q: 'What does PIN stand for?',

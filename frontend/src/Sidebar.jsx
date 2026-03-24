@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    LayoutDashboard, Users, Map, Eye, Settings, HelpCircle, Info, LogOut,
+    LayoutDashboard, Users, Map, Eye, HelpCircle, Info, LogOut,
     ChevronDown, ChevronRight, BarChart3, Layers, Search
 } from 'lucide-react';
 import logoImg from './assets/Municipality of San Pascual.jpg';
@@ -59,22 +59,15 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
                     <div className="sb-submenu">
                         <button className={`sb-sub-item ${activePage === 'map-cad' ? 'active' : ''}`} onClick={() => handleNav('map-cad')}>
                             <Layers size={18} className="sb-icon" />
-                            <span className="sb-label">CAD</span>
+                            <span className="sb-label">Cadastral Map</span>
                         </button>
                         <button className={`sb-sub-item ${activePage === 'map-pim' ? 'active' : ''}`} onClick={() => handleNav('map-pim')}>
                             <Search size={18} className="sb-icon" />
-                            <span className="sb-label">PIM</span>
+                            <span className="sb-label">Tax Map</span>
                         </button>
                     </div>
                 )}
 
-                {/* Maintenance (Admin only) */}
-                {isStaff && (
-                    <button className={`sb-item ${activePage === 'maintenance' ? 'active' : ''}`} onClick={() => handleNav('maintenance')}>
-                        <Settings size={20} className="sb-icon" />
-                        <span className="sb-label">Maintenance</span>
-                    </button>
-                )}
             </nav>
 
             {/* Footer */}

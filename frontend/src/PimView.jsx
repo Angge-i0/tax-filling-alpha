@@ -14,7 +14,7 @@ const ALL_BARANGAYS = [
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
-export default function PimView({ isStaff, geoData }) {
+export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     // Navigation State
     const [barangayList, setBarangayList] = useState([]);
     const [selectedBarangay, setSelectedBarangay] = useState(null);
@@ -35,9 +35,6 @@ export default function PimView({ isStaff, geoData }) {
     const [showBarangayPanel, setShowBarangayPanel] = useState(true);
     const [showDetailsPanel, setShowDetailsPanel] = useState(true);
     const [mapInstance, setMapInstance] = useState(null);
-
-    // Base map bounds reference
-    const [mapCenter, setMapCenter] = useState([13.79, 121.0]);
 
     // Caching and Loading States
     const barangayDataCache = useRef({});
@@ -71,38 +68,35 @@ export default function PimView({ isStaff, geoData }) {
             .catch(err => setError(String(err)));
     }, []);
 
+    useEffect(() => {
+        if (!onHeaderTitleChange) return;
+        onHeaderTitleChange(selectedBarangay || 'San Pascual Overview');
+    }, [selectedBarangay, onHeaderTitleChange]);
+
     // When a Barangay is selected
     useEffect(() => {
         if (!selectedBarangay) {
             setBarangayGeoData(null);
             setSectionList([]);
             setSectionGeoData(null);
-            setError(null); // Clear error when deselecting
+            setError(null);
             return;
         }
 
-        // Clear error when switching to a new barangay
         setError(null);
-
-        // Clear previous data immediately for instant visual feedback
         setSectionGeoData(null);
         setLotGeoData(null);
         setShowEnlargementMap(false);
 
-        // Check cache first
         if (barangayDataCache.current[selectedBarangay]) {
-            // Load from cache instantly
             setBarangayGeoData(barangayDataCache.current[selectedBarangay]);
         } else {
-            // Clear old barangay data while loading new one
             setBarangayGeoData(null);
             setIsLoadingBarangay(true);
-            // Load dissolved section polygons (Barangay view)
             apiGet(`/api/pim/barangays/${selectedBarangay}/geojson/`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) throw new Error(data.error);
-                    // Cache the data
                     barangayDataCache.current[selectedBarangay] = data;
                     setBarangayGeoData(data);
                     setIsLoadingBarangay(false);
@@ -113,7 +107,6 @@ export default function PimView({ isStaff, geoData }) {
                 });
         }
 
-        // Load section list metadata (with caching)
         if (sectionListCache.current[selectedBarangay]) {
             setSectionList(sectionListCache.current[selectedBarangay]);
         } else {
@@ -136,26 +129,20 @@ export default function PimView({ isStaff, geoData }) {
             return;
         }
 
-        // Clear error when selecting a section
         setError(null);
-
-        // Clear previous lot selection once a new section is picked
         setSelectedLot(null);
         setShowEnlargementMap(false);
 
         const cacheKey = `${selectedBarangay}-${selectedSection}`;
 
-        // Check cache first
         if (lotDataCache.current[cacheKey]) {
             setLotGeoData(lotDataCache.current[cacheKey]);
         } else {
             setIsLoadingSection(true);
-            // Load lots for this section
             apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${selectedSection}/lots/`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.error) throw new Error(data.error);
-                    // Cache the data
                     lotDataCache.current[cacheKey] = data;
                     setLotGeoData(data);
                     setSelectedLot(null);
@@ -167,7 +154,6 @@ export default function PimView({ isStaff, geoData }) {
                     setIsLoadingSection(false);
                 });
         }
-
     }, [selectedSection, selectedBarangay]);
 
     const loadEnlargementForSection = (sectionNum, lotFeature = null) => {
@@ -183,12 +169,10 @@ export default function PimView({ isStaff, geoData }) {
             .catch(err => alert("Error loading enlargement: " + String(err)));
     };
 
-    // When Enlargement is requested from details panel
     const handleLoadEnlargement = () => {
         loadEnlargementForSection(selectedSection, selectedLot);
     };
 
-    // When Enlargement is requested from map popup
     const handlePopupEnlargement = (feature) => {
         const sectionNum = feature?.properties?.section_number ?? selectedSection;
         loadEnlargementForSection(sectionNum, feature);
@@ -197,63 +181,49 @@ export default function PimView({ isStaff, geoData }) {
     const handleMapFeatureSelect = (feature) => {
         if (!feature || !feature.properties) return;
 
-        // We are looking at Municipality Level (seeing barangays)
         if (feature.properties.ADM4_EN && !selectedBarangay) {
             setSelectedBarangay(feature.properties.ADM4_EN);
         }
-        // Background map click - switch to different barangay
         else if (feature.properties.ADM4_EN && selectedBarangay && feature.properties.ADM4_EN !== selectedBarangay) {
-            // Reset section and lot when switching barangays
             setSelectedSection(null);
             setSelectedLot(null);
             setSelectedBarangay(feature.properties.ADM4_EN);
         }
-        // We are looking at Barangay Level (seeing sections)
         else if (feature.properties.hasOwnProperty('section_number') && !feature.properties.hasOwnProperty('PIN') && !feature.properties.hasOwnProperty('pin')) {
-            setSelectedLot(null); // Clear selected lot when clicking a new section
+            setSelectedLot(null);
             setSelectedSection(feature.properties.section_number);
         }
-        // We are looking at Section Level (seeing lots)
         else if (feature.properties.hasOwnProperty('PIN') || feature.properties.hasOwnProperty('pin') || feature.properties.hasOwnProperty('owner')) {
             setSelectedLot(feature);
         }
     };
 
-    // Determine which data to feed to MapComponent
     let activeGeoData = null;
     let backgroundGeoData = null;
     let activeLayerKey = 'loading';
 
     if (!selectedBarangay) {
-        // Top-level municipality view
         activeGeoData = geoData;
         backgroundGeoData = null;
         activeLayerKey = 'municipality';
     } else {
-        // A barangay is selected!
-        backgroundGeoData = geoData; // Always show municipality as grey backdrop
-
+        backgroundGeoData = geoData;
         if (showEnlargementMap && enlargementData) {
             activeGeoData = enlargementData;
             activeLayerKey = 'enlargement';
         } else if (selectedSection !== null && lotGeoData) {
-            // Section is selected and lot data is loaded
             activeGeoData = lotGeoData;
             activeLayerKey = 'section-' + selectedSection;
         } else if (selectedSection !== null && isLoadingSection) {
-            // Section is selected but lots are still loading - keep showing barangay view
             activeGeoData = barangayGeoData;
             activeLayerKey = 'barangay-' + selectedBarangay + '-loading';
         } else if (selectedSection !== null && !lotGeoData) {
-            // Section is selected but no lot data (error or empty) - show barangay view
             activeGeoData = barangayGeoData;
             activeLayerKey = 'barangay-' + selectedBarangay;
         } else if (barangayGeoData) {
-            // Just barangay view
             activeGeoData = barangayGeoData;
             activeLayerKey = 'barangay-' + selectedBarangay;
         } else {
-            // Data is either still loading, or this barangay has no sections yet.
             activeGeoData = null;
             activeLayerKey = 'empty-or-loading';
         }
@@ -271,13 +241,10 @@ export default function PimView({ isStaff, geoData }) {
                     return;
                 }
             }
-        } catch (e) {
-            // Fallback below if bounds fail
-        }
+        } catch (e) {}
         mapInstance.setView([13.79, 121.0], 13);
     };
 
-    // --- Computation Engine ---
     const safeNum = (val) => {
         if (val === null || val === undefined || isNaN(val)) return 0;
         return Number(val);
@@ -286,17 +253,12 @@ export default function PimView({ isStaff, geoData }) {
     const computedTax = useMemo(() => {
         if (!selectedLot || !selectedLot.properties) return null;
         const p = selectedLot.properties;
-
-        // Determination of adjustment rate
-        // We use refinementLevel state, but ensure it's valid for this lot
         const canUseRRW = safeNum(p.area_rrw) > 0;
         const adjustmentRate = (refinementLevel === 0.50 && !canUseRRW) ? 0.75 : refinementLevel;
 
-        // Base values per land use (San Pascual defaults)
-        let unitValue = 1000;       // standard
-        let assessmentLevel = 0.20; // default (residential)
+        let unitValue = 1000;
+        let assessmentLevel = 0.20;
 
-        // Automatic Land Use Logic
         if (safeNum(p.area_comml) > 0) {
             unitValue = 2500;
             assessmentLevel = 0.50;
@@ -309,21 +271,13 @@ export default function PimView({ isStaff, geoData }) {
         }
 
         const totalArea = safeNum(p.area_res) + safeNum(p.area_agri) + safeNum(p.area_indl) + safeNum(p.area_comml);
-
         const marketValue = totalArea * unitValue * adjustmentRate;
         const assessedValue = marketValue * assessmentLevel;
-        const taxRate = 0.02; // 2% RPT
-        const rpt = assessedValue * taxRate;
+        const rpt = assessedValue * 0.02;
 
         return {
-            adjustmentRate,
-            unitValue,
-            assessmentLevel,
-            taxRate,
-            totalArea,
-            marketValue,
-            assessedValue,
-            rpt
+            adjustmentRate, unitValue, assessmentLevel, taxRate: 0.02,
+            totalArea, marketValue, assessedValue, rpt
         };
     }, [selectedLot, refinementLevel]);
 
@@ -334,9 +288,9 @@ export default function PimView({ isStaff, geoData }) {
                 width: '24%',
                 maxWidth: '24rem',
                 background: '#fff',
-                padding: '15px',
-                borderRadius: '12px',
-                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                padding: '0.9375rem',
+                borderRadius: '0.75rem',
+                boxShadow: '0 0.5rem 1.5rem rgba(15,23,42,0.18)',
                 overflowY: 'auto',
                 position: 'absolute',
                 top: '4.5rem',
@@ -346,14 +300,14 @@ export default function PimView({ isStaff, geoData }) {
                 transform: showBarangayPanel ? 'translateX(0)' : 'translateX(-110%)',
                 transition: 'transform 0.25s ease'
             }}>
-                <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '2px solid #e2e8f0', paddingBottom: '10px' }}>Barangays</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '0.125rem solid #e2e8f0', paddingBottom: '0.625rem' }}>Barangays</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
                     {barangayList.map(b => (
                         <button
                             key={b.name}
                             onClick={() => setSelectedBarangay(b.name)}
                             style={{
-                                textAlign: 'left', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0',
+                                textAlign: 'left', padding: '0.625rem', borderRadius: '0.375rem', border: '0.0625rem solid #e2e8f0',
                                 background: selectedBarangay === b.name ? '#ebf4ff' : '#fff',
                                 borderColor: selectedBarangay === b.name ? '#3b82f6' : '#e2e8f0',
                                 cursor: 'pointer', opacity: b.has_data ? 1 : 0.5
@@ -371,101 +325,49 @@ export default function PimView({ isStaff, geoData }) {
             </div>
 
             {/* CENTER: Main Map View */}
-            <div className="pim-map-area" style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        <button
-                            className="pim-map-ctrl-btn"
-                            onClick={() => mapInstance?.zoomIn()}
-                            type="button"
-                            title="Zoom in"
-                            disabled={!mapInstance}
-                        >
-                            <Plus size={16} />
-                            <span>Zoom In</span>
+            <div className="pim-map-area" style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '0.625rem' }}>
+                    <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
+                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomIn()} type="button" disabled={!mapInstance}>
+                            <Plus size={16} /><span>Zoom In</span>
                         </button>
-                        <button
-                            className="pim-map-ctrl-btn"
-                            onClick={() => mapInstance?.zoomOut()}
-                            type="button"
-                            title="Zoom out"
-                            disabled={!mapInstance}
-                        >
-                            <Minus size={16} />
-                            <span>Zoom Out</span>
+                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomOut()} type="button" disabled={!mapInstance}>
+                            <Minus size={16} /><span>Zoom Out</span>
                         </button>
-                        <button
-                            className="pim-map-ctrl-btn pim-map-ctrl-btn-primary"
-                            onClick={handleRecenter}
-                            type="button"
-                            title="Recenter"
-                            disabled={!mapInstance}
-                        >
-                            <Locate size={16} />
-                            <span>Recenter</span>
+                        <button className="pim-map-ctrl-btn pim-map-ctrl-btn-primary" onClick={handleRecenter} type="button" disabled={!mapInstance}>
+                            <Locate size={16} /><span>Recenter</span>
                         </button>
-                        <button
-                            onClick={() => setShowBarangayPanel(v => !v)}
-                            style={{ background: '#0f1d35', color: '#fff', border: '1px solid #0f1d35', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                        >
+                        <button onClick={() => setShowBarangayPanel(v => !v)} style={{ background: '#0f1d35', color: '#fff', border: '0.0625rem solid #0f1d35', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                             {showBarangayPanel ? 'Hide Barangays' : 'Show Barangays'}
                         </button>
-                        <button
-                            onClick={() => setShowDetailsPanel(v => !v)}
-                            style={{ background: '#0f1d35', color: '#fff', border: '1px solid #0f1d35', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                        >
+                        <button onClick={() => setShowDetailsPanel(v => !v)} style={{ background: '#0f1d35', color: '#fff', border: '0.0625rem solid #0f1d35', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                             {showDetailsPanel ? 'Hide Details' : 'Show Details'}
                         </button>
                         {selectedBarangay && !selectedSection && (
-                            <button
-                                onClick={() => { setSelectedBarangay(null); setBarangayGeoData(null); }}
-                                style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                            >
+                            <button onClick={() => { setSelectedBarangay(null); setBarangayGeoData(null); }} style={{ background: '#f8fafc', border: '0.0625rem solid #cbd5e1', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                                 Back to Map View
                             </button>
                         )}
                         {selectedSection !== null && !showEnlargementMap && (
-                            <button
-                                onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLot(null); setShowEnlargementMap(false); }}
-                                style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                            >
+                            <button onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLot(null); }} style={{ background: '#f8fafc', border: '0.0625rem solid #cbd5e1', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                                 Back to Sections
                             </button>
                         )}
                         {showEnlargementMap && (
-                            <button
-                                onClick={() => setShowEnlargementMap(false)}
-                                style={{ background: '#f8fafc', border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
-                            >
+                            <button onClick={() => setShowEnlargementMap(false)} style={{ background: '#f8fafc', border: '0.0625rem solid #cbd5e1', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                                 Close Enlargement
                             </button>
                         )}
                     </div>
                 </div>
 
-                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, minHeight: '72vh', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0, 0, 0, 0.06)', position: 'relative' }}>
+                <div className="map-view" data-blurred={!!selectedBarangay} style={{ flex: 1, borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 0.0625rem 0.375rem rgba(0, 0, 0, 0.06)', position: 'relative', minHeight: 0 }}>
                     {(isLoadingBarangay || isLoadingSection) && (
-                        <div style={{
-                            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                            zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '20px 40px',
-                            borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            fontSize: '1.1em', fontWeight: 'bold', color: '#1e3a5f'
-                        }}>
+                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '1.25rem 2.5rem', borderRadius: '0.75rem', boxShadow: '0 0.25rem 0.75rem rgba(0,0,0,0.15)', fontSize: '1.1em', fontWeight: 'bold', color: '#1e3a5f' }}>
                             Loading map data...
                         </div>
                     )}
-                    <MapComponent
-                        geoData={activeGeoData}
-                        error={error}
-                        onFeatureSelect={handleMapFeatureSelect}
-                        onEnlargementRequest={handlePopupEnlargement}
-                        selectedFeature={activeFeature}
-                        backgroundGeoData={backgroundGeoData}
-                        isBackgroundInteractive={false}
-                        showCustomControls={false}
-                        onMapReady={setMapInstance}
-                        layerKey={activeLayerKey}
-                    />
+                    <MapComponent geoData={activeGeoData} error={error} onFeatureSelect={handleMapFeatureSelect} onEnlargementRequest={handlePopupEnlargement} selectedFeature={activeFeature} backgroundGeoData={backgroundGeoData} isBackgroundInteractive={false} showCustomControls={false} onMapReady={setMapInstance} layerKey={activeLayerKey} />
                 </div>
             </div>
 
@@ -474,10 +376,10 @@ export default function PimView({ isStaff, geoData }) {
                 width: '30%',
                 maxWidth: '28rem',
                 background: '#fff',
-                borderRadius: '12px',
-                padding: '20px',
+                borderRadius: '0.75rem',
+                padding: '1.25rem',
                 overflowY: 'auto',
-                boxShadow: '0 8px 24px rgba(15,23,42,0.18)',
+                boxShadow: '0 0.5rem 1.5rem rgba(15,23,42,0.18)',
                 position: 'absolute',
                 top: '4.5rem',
                 right: '0.75rem',
@@ -486,346 +388,135 @@ export default function PimView({ isStaff, geoData }) {
                 transform: showDetailsPanel ? 'translateX(0)' : 'translateX(110%)',
                 transition: 'transform 0.25s ease'
             }}>
-
-                {/* If Section is selected, show Lot Details or Lot List */}
                 {selectedSection !== null ? (
                     <>
                         {selectedLot && lotGeoData?.features ? (
                             <div className="lot-details">
-                                <button
-                                    onClick={() => setSelectedLot(null)}
-                                    style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0 0 15px 0', fontWeight: 'bold' }}
-                                >
+                                <button onClick={() => setSelectedLot(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0 0 0.9375rem 0', fontWeight: 'bold' }}>
                                     &larr; Back to Lots
                                 </button>
-
                                 <div className="lot-details-grid">
                                     <div className="lot-detail-field full">
                                         <label>LOT / PARCEL</label>
-                                        <select 
-                                            value={lotGeoData.features.indexOf(selectedLot)} 
-                                            onChange={(e) => setSelectedLot(lotGeoData.features[e.target.value])}
-                                            className="lot-select"
-                                        >
+                                        <select value={lotGeoData.features.indexOf(selectedLot)} onChange={(e) => setSelectedLot(lotGeoData.features[e.target.value])} className="lot-select">
                                             {lotGeoData.features.map((f, idx) => (
-                                                <option key={idx} value={idx}>
-                                                    Lot {String(f.properties.pin || '').split('-').pop() || (idx + 1)}
-                                                </option>
+                                                <option key={idx} value={idx}>Lot {String(f.properties.pin || '').split('-').pop() || (idx + 1)}</option>
                                             ))}
                                         </select>
                                     </div>
-
-                                    <div className="lot-detail-field full">
-                                        <label>MUNICIPALITY</label>
-                                        <div className="lot-val-box">San Pascual, Batangas</div>
-                                    </div>
-
-                                    <div className="lot-detail-field-half">
-                                        <label>BARANGAY</label>
-                                        <div className="lot-val-box">{selectedBarangay}</div>
-                                    </div>
-
-                                    <div className="lot-detail-field-half">
-                                        <label>SECTION #</label>
-                                        <div className="lot-val-box">Section {selectedSection}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>OWNER</label>
-                                        <div className="lot-card-val">{selectedLot.properties?.owner || 'N/A'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>PIN</label>
-                                        <div className="lot-card-val highlight">{selectedLot.properties?.pin || 'N/A'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card full">
-                                        <label>ADDRESS</label>
-                                        <div className="lot-card-val small">{selectedLot.properties?.address || `Lot ${String(selectedLot.properties?.pin || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>LAND USE</label>
-                                        <div className="lot-card-val landuse">
-                                            {(() => {
-                                                const p = selectedLot.properties;
-                                                const uses = [];
-                                                if (safeNum(p.area_res) > 0) uses.push('Residential');
-                                                if (safeNum(p.area_agri) > 0) uses.push('Agricultural');
-                                                if (safeNum(p.area_comml) > 0) uses.push('Commercial');
-                                                if (safeNum(p.area_indl) > 0) uses.push('Industrial');
-                                                return uses.join(', ') || 'Rural/Open';
-                                            })()}
-                                        </div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>ARP NO.</label>
-                                        <div className="lot-card-val">{selectedLot.properties?.arp_no || 'N/A'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>PREV. ARP NO.</label>
-                                        <div className="lot-card-val">{selectedLot.properties?.prev_arp_no || 'N/A'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card">
-                                        <label>AREA PER SQM</label>
-                                        <div className="lot-card-val">{computedTax?.totalArea?.toFixed(2) || '0.00'} sqm</div>
-                                    </div>
-
-                                    <div className="lot-detail-card full specialty">
-                                        <label>ADJUSTMENT LEVEL</label>
+                                    <div className="lot-detail-field-half"><label>BARANGAY</label><div className="lot-val-box">{selectedBarangay}</div></div>
+                                    <div className="lot-detail-field-half"><label>SECTION #</label><div className="lot-val-box">Section {selectedSection}</div></div>
+                                    <div className="lot-detail-card"><label>OWNER</label><div className="lot-card-val">{selectedLot.properties?.owner || 'N/A'}</div></div>
+                                    <div className="lot-detail-card"><label>PIN</label><div className="lot-card-val highlight">{selectedLot.properties?.pin || 'N/A'}</div></div>
+                                    <div className="lot-detail-card full"><label>ADDRESS</label><div className="lot-card-val small">{selectedLot.properties?.address || `Lot ${String(selectedLot.properties?.pin || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div></div>
+                                    <div className="lot-detail-card"><label>LAND USE</label><div className="lot-card-val landuse">
+                                        {(() => {
+                                            const p = selectedLot.properties;
+                                            const uses = [];
+                                            if (safeNum(p.area_res) > 0) uses.push('Residential');
+                                            if (safeNum(p.area_agri) > 0) uses.push('Agricultural');
+                                            if (safeNum(p.area_comml) > 0) uses.push('Commercial');
+                                            if (safeNum(p.area_indl) > 0) uses.push('Industrial');
+                                            return uses.join(', ') || 'Rural/Open';
+                                        })()}
+                                    </div></div>
+                                    <div className="lot-detail-card"><label>ARP NO.</label><div className="lot-card-val">{selectedLot.properties?.arp_no || 'N/A'}</div></div>
+                                    <div className="lot-detail-card"><label>AREA PER SQM</label><div className="lot-card-val">{computedTax?.totalArea?.toFixed(2) || '0.00'} sqm</div></div>
+                                    <div className="lot-detail-card full specialty"><label>ADJUSTMENT LEVEL</label>
                                         <div className="adj-buttons">
-                                            <button 
-                                                className={refinementLevel === 0.75 ? 'active' : ''} 
-                                                onClick={() => setRefinementLevel(0.75)}
-                                            >75%</button>
-                                            <button 
-                                                className={refinementLevel === 0.85 ? 'active' : ''} 
-                                                onClick={() => setRefinementLevel(0.85)}
-                                            >85%</button>
-                                            {safeNum(selectedLot.properties.area_rrw) > 0 && (
-                                                <button 
-                                                    className={refinementLevel === 0.50 ? 'active' : ''} 
-                                                    onClick={() => setRefinementLevel(0.50)}
-                                                >50% (RRW)</button>
-                                            )}
+                                            <button className={refinementLevel === 0.75 ? 'active' : ''} onClick={() => setRefinementLevel(0.75)}>75%</button>
+                                            <button className={refinementLevel === 0.85 ? 'active' : ''} onClick={() => setRefinementLevel(0.85)}>85%</button>
+                                            {safeNum(selectedLot.properties.area_rrw) > 0 && <button className={refinementLevel === 0.50 ? 'active' : ''} onClick={() => setRefinementLevel(0.50)}>50% (RRW)</button>}
                                         </div>
                                     </div>
-
-                                    <div className="lot-detail-card highlight-green">
-                                        <label>MARKET VALUE</label>
-                                        <div className="lot-card-val primary">₱{computedTax?.marketValue?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card highlight-blue">
-                                        <label>ASSESSED VALUE</label>
-                                        <div className="lot-card-val secondary">₱{computedTax?.assessedValue?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
-                                    </div>
-
-                                    <div className="lot-detail-card highlight-navy">
-                                        <label>RPT</label>
-                                        <div className="lot-card-val secondary">₱{computedTax?.rpt?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div>
-                                    </div>
-
-                                    {/* Enlargement Action */}
+                                    <div className="lot-detail-card highlight-green"><label>MARKET VALUE</label><div className="lot-card-val primary">₱{computedTax?.marketValue?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div></div>
+                                    <div className="lot-detail-card highlight-navy"><label>RPT</label><div className="lot-card-val secondary">₱{computedTax?.rpt?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '0.00'}</div></div>
                                     {selectedLot?.properties?.has_enlargement && (
                                         <div className="lot-enlargement-box">
                                             <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
-                                            <button onClick={handleLoadEnlargement} className="enlarge-btn">
-                                                SEE ENLARGEMENT
-                                            </button>
+                                            <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT</button>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         ) : (
                             <div className="section-lots-list">
-                                <h3 style={{ margin: '0 0 15px 0', color: '#0f1d35' }}>Section {selectedSection} Lots</h3>
-                                {isLoadingSection ? (
-                                    <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>Loading lots...</div>
-                                ) : lotGeoData && lotGeoData.features && lotGeoData.features.length > 0 ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                <h3 style={{ margin: '0 0 0.9375rem 0', color: '#0f1d35' }}>Section {selectedSection} Lots</h3>
+                                {isLoadingSection ? <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>Loading lots...</div> : (lotGeoData?.features?.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
                                         {lotGeoData.features.map((f, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => setSelectedLot(f)}
-                                                style={{
-                                                    textAlign: 'left', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '4px',
-                                                    background: '#fff', cursor: 'pointer', color: '#1e3a5f'
-                                                }}
-                                            >
+                                            <button key={i} onClick={() => setSelectedLot(f)} style={{ textAlign: 'left', padding: '0.5rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.25rem', background: '#fff', cursor: 'pointer', color: '#1e3a5f' }}>
                                                 {f.properties?.owner || `PIN: ${f.properties?.pin || 'Unknown'}`}
                                                 {f.properties?.arp_no && <div style={{ fontSize: '0.8em', color: '#64748b' }}>ARP: {f.properties.arp_no}</div>}
                                             </button>
                                         ))}
                                     </div>
-                                ) : (
-                                    <div style={{ color: '#64748b', fontStyle: 'italic' }}>No lots available</div>
-                                )}
+                                ) : <div style={{ color: '#64748b', fontStyle: 'italic' }}>No lots available</div>)}
                             </div>
                         )}
                     </>
                 ) : selectedBarangay ? (
                     <>
-                        <h3 style={{ margin: '0 0 15px 0', color: '#0f1d35' }}>{selectedBarangay} Sections</h3>
-                        {isLoadingBarangay ? (
-                            <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>Loading sections...</div>
-                        ) : sectionList.length === 0 ? (
-                            <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '40px 20px',
-                                textAlign: 'center',
-                                color: '#ef4444'
-                            }}>
-                                <div style={{ fontSize: '3em', marginBottom: '15px' }}>⚠️</div>
-                                <div style={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '8px' }}>Error</div>
+                        <h3 style={{ margin: '0 0 0.9375rem 0', color: '#0f1d35' }}>{selectedBarangay} Sections</h3>
+                        {isLoadingBarangay ? <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>Loading sections...</div> : (sectionList.length === 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2.5rem 1.25rem', textAlign: 'center', color: '#ef4444' }}>
+                                <div style={{ fontSize: '3em', marginBottom: '0.9375rem' }}>⚠️</div>
+                                <div style={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '0.5rem' }}>Error</div>
                                 <div style={{ fontSize: '0.9em', fontStyle: 'italic' }}>Does not contain data</div>
-                                <div style={{ fontSize: '0.75em', color: '#94a3b8', marginTop: '15px', lineHeight: '1.5' }}>
-                                    This barangay does not have PIM data available yet.
-                                </div>
                             </div>
                         ) : (
                             <>
                                 <p style={{ fontSize: '0.85em', color: '#64748b' }}>Click a section on the map to view lots.</p>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
                                     {sectionList.map(s => (
-                                        <button
-                                            key={s.number}
-                                            onClick={() => setSelectedSection(s.number)}
-                                            style={{
-                                                textAlign: 'left', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '6px',
-                                                background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between'
-                                            }}
-                                        >
+                                        <button key={s.number} onClick={() => setSelectedSection(s.number)} style={{ textAlign: 'left', padding: '0.625rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.375rem', background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
                                             <span style={{ fontWeight: 'bold', color: '#1e3a5f' }}>Section {s.number}</span>
-                                            <span style={{ fontSize: '0.85em', color: '#64748b', background: '#f1f5f9', padding: '2px 6px', borderRadius: '10px' }}>
-                                                {s.lot_count} lots
-                                            </span>
+                                            <span style={{ fontSize: '0.85em', color: '#64748b', background: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '0.625rem' }}>{s.lot_count} lots</span>
                                         </button>
                                     ))}
                                 </div>
                             </>
-                        )}
+                        ))}
                     </>
                 ) : (
                     <div className="empty-state" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#94a3b8' }}>
-                        <div style={{ fontSize: '3em', marginBottom: '10px' }}>🗺️</div>
-                        <p>Select a barangay to view</p>
+                        <div style={{ fontSize: '3em', marginBottom: '0.625rem' }}>🗺️</div><p>Select a barangay to view</p>
                     </div>
                 )}
             </div>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-        .lot-details-grid {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          padding-top: 10px;
-        }
-        .lot-detail-field {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
+        .lot-details-grid { display: flex; flex-direction: column; gap: 0.75rem; padding-top: 0.625rem; }
+        .lot-detail-field { display: flex; flex-direction: column; gap: 0.25rem; }
         .lot-detail-field.full { width: 100%; }
-        .lot-detail-field-half { width: 48%; display: inline-block; vertical-align: top; margin-right: 4%; margin-bottom: 12px; }
+        .lot-detail-field-half { width: 48%; display: inline-block; vertical-align: top; margin-right: 4%; margin-bottom: 0.75rem; }
         .lot-detail-field-half:last-child { margin-right: 0; }
-        
-        .lot-detail-field label, .lot-detail-field-half label {
-          font-size: 0.7em;
-          font-weight: 800;
-          color: #94a3b8;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 2px;
-        }
-        .lot-val-box {
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          padding: 8px 12px;
-          border-radius: 6px;
-          font-weight: 700;
-          color: #0f1d35;
-          font-size: 0.9em;
-        }
-        .lot-select {
-          width: 100%;
-          padding: 10px;
-          border-radius: 8px;
-          border: 2px solid #3b82f6;
-          font-weight: 800;
-          color: #1e3a5f;
-          background: #fff;
-          cursor: pointer;
-        }
-        .lot-detail-card {
-          background: #fff;
-          border: 1px solid #f1f5f9;
-          padding: 12px;
-          border-radius: 8px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-          display: inline-block;
-          width: 48%;
-          margin-right: 4%;
-          margin-bottom: 8px;
-          vertical-align: top;
-        }
+        .lot-detail-field label, .lot-detail-field-half label { font-size: 0.7em; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03rem; margin-bottom: 0.125rem; }
+        .lot-val-box { background: #f8fafc; border: 0.0625rem solid #e2e8f0; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: 700; color: #0f1d35; font-size: 0.9em; }
+        .lot-select { width: 100%; padding: 0.625rem; border-radius: 0.5rem; border: 0.125rem solid #3b82f6; font-weight: 800; color: #1e3a5f; background: #fff; cursor: pointer; }
+        .lot-detail-card { background: #fff; border: 0.0625rem solid #f1f5f9; padding: 0.75rem; border-radius: 0.5rem; box-shadow: 0 0.0625rem 0.18rem rgba(0,0,0,0.02); display: inline-block; width: 48%; margin-right: 4%; margin-bottom: 0.5rem; vertical-align: top; }
         .lot-detail-card.full { width: 100%; margin-right: 0; }
         .lot-detail-card:nth-child(even):not(.full) { margin-right: 0; }
-        
-        .lot-detail-card label {
-          font-size: 0.65em;
-          font-weight: 800;
-          color: #94a3b8;
-          display: block;
-          margin-bottom: 4px;
-          text-transform: uppercase;
-        }
-        .lot-card-val {
-          font-weight: 700;
-          color: #1e3a5f;
-          font-size: 0.95em;
-          word-break: break-word;
-        }
+        .lot-detail-card label { font-size: 0.65em; font-weight: 800; color: #94a3b8; display: block; margin-bottom: 0.25rem; text-transform: uppercase; }
+        .lot-card-val { font-weight: 700; color: #1e3a5f; font-size: 0.95em; word-break: break-word; }
         .lot-card-val.highlight { color: #dc2626; }
         .lot-card-val.small { font-size: 0.82em; line-height: 1.4; color: #475569; }
         .lot-card-val.landuse { color: #059669; }
         .lot-card-val.primary { color: #dc2626; font-size: 1.3em; }
         .lot-card-val.secondary { color: #1e3a5f; font-size: 1.15em; }
-        
-        .highlight-green { border-left: 4px solid #10b981; background: #f0fdf4 !important; }
-        .highlight-blue { border-left: 4px solid #3b82f6; background: #eff6ff !important; }
-        .highlight-navy { border-left: 4px solid #0f1d35; background: #f8fafc !important; }
-        
-        .adj-buttons { display: flex; gap: 6px; margin-top: 8px; }
-        .adj-buttons button {
-          flex: 1;
-          padding: 8px 4px;
-          font-size: 0.75em;
-          font-weight: 800;
-          border: 1px solid #cbd5e1;
-          background: #fff;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .adj-buttons button.active {
-          background: #1e3a5f;
-          color: #fff;
-          border-color: #1e3a5f;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .lot-enlargement-box {
-          margin-top: 15px;
-          padding: 15px;
-          background: #fffbeb;
-          border: 1px solid #fcd34d;
-          border-radius: 10px;
-          text-align: center;
-          width: 100%;
-        }
-        .enlarge-text { font-size: 0.8em; color: #92400e; margin-bottom: 12px; font-weight: 700; }
-        .enlarge-btn {
-          width: 100%;
-          padding: 10px;
-          background: #d97706;
-          color: #fff;
-          border: none;
-          border-radius: 8px;
-          font-weight: 800;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        .enlarge-btn:hover { background: #b45309; }
-      `}} />
+        .highlight-green { border-left: 0.25rem solid #10b981; background: #f0fdf4 !important; }
+        .highlight-navy { border-left: 0.25rem solid #0f1d35; background: #f8fafc !important; }
+        .adj-buttons { display: flex; gap: 0.37rem; margin-top: 0.5rem; }
+        .adj-buttons button { flex: 1; padding: 0.5rem 0.25rem; font-size: 0.75em; font-weight: 800; border: 0.0625rem solid #cbd5e1; background: #fff; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s; color: #64748b; }
+        .adj-buttons button:hover { background: #f1f5f9; border-color: #94a3b8; color: #1e3a5f; }
+        .adj-buttons button.active { background: #1e3a5f; border-color: #1e3a5f; color: #fff; }
+        .lot-enlargement-box { margin-top: 0.5rem; padding: 0.93rem; background: #fffbeb; border: 0.0625rem dashed #f59e0b; border-radius: 0.75rem; text-align: center; }
+        .enlarge-text { color: #b45309; font-size: 0.85em; font-weight: 600; margin-bottom: 0.62rem; }
+        .enlarge-btn { width: 100%; background: #f59e0b; color: #fff; border: none; padding: 0.62rem; border-radius: 0.5rem; font-weight: 800; font-size: 0.85em; cursor: pointer; transition: background 0.2s; }
+        .enlarge-btn:hover { background: #d97706; }
+      `
+            }} />
         </div>
     );
 }

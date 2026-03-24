@@ -179,10 +179,10 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           const popupButton = L.DomUtil.create('button', 'popup-enlarge-btn', popupWrap);
           popupButton.type = 'button';
           popupButton.textContent = 'SEE ENLARGEMENT';
-          popupButton.style.marginTop = '6px';
-          popupButton.style.padding = '6px 10px';
+          popupButton.style.marginTop = '0.375rem';
+          popupButton.style.padding = '0.375rem 0.625rem';
           popupButton.style.border = '0';
-          popupButton.style.borderRadius = '6px';
+          popupButton.style.borderRadius = '0.375rem';
           popupButton.style.background = '#d97706';
           popupButton.style.color = '#fff';
           popupButton.style.fontWeight = '700';
@@ -319,7 +319,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       )}
 
       {error && (
-        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(255,0,0,0.8)', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px' }}>
+        <div style={{ position: 'absolute', top: '0.625rem', left: '0.625rem', zIndex: 1000, background: 'rgba(255,0,0,0.8)', color: 'white', padding: '0.3125rem 0.625rem', borderRadius: '0.25rem', fontSize: '0.75rem' }}>
           {error}
         </div>
       )}

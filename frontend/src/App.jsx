@@ -10,7 +10,6 @@ import AboutCredits from './AboutCredits'
 import MapComponent from './MapComponent'
 import Header from './Header'
 import PimView from './PimView';
-import Maintenance from './Maintenance';
 import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToken } from './api'
 import './App.css'
 import ErrorBoundary from './ErrorBoundary'
@@ -21,6 +20,7 @@ function App() {
   const [fullName, setFullName] = useState(null)
   const [isStaff, setIsStaff] = useState(false)
   const [activePage, setActivePage] = useState('main-dashboard')
+  const [pimHeaderTitle, setPimHeaderTitle] = useState('San Pascual Overview')
 
   // Map state (for PIM view)
   const [selectedFeature, setSelectedFeature] = useState(null)
@@ -231,8 +231,7 @@ function App() {
     'main-dashboard': 'Main Dashboard',
     'user-management': 'User Management',
     'map-cad': 'CAD Map Overview',
-    'map-pim': 'PIM View',
-    'maintenance': 'Maintenance',
+    'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
     'about': 'About & Credits',
   }[activePage] || 'Dashboard'
@@ -244,7 +243,7 @@ function App() {
       case 'user-management':
         return isStaff ? <AdminDashboard username={user} onLogout={handleLogout} /> : <UserDashboard />
       case 'map-pim':
-        return <PimView isStaff={isStaff} geoData={geoData} />
+        return <PimView isStaff={isStaff} geoData={geoData} onHeaderTitleChange={setPimHeaderTitle} />
       case 'map-cad':
         return (
           <CadMap
@@ -253,8 +252,6 @@ function App() {
             isStaff={isStaff}
           />
         )
-      case 'maintenance':
-        return isStaff ? <Maintenance /> : <UserDashboard />
       case 'faqs':
         return <FAQs />
       case 'about':
@@ -277,7 +274,6 @@ function App() {
         <div className="app-header">
           <div className="header-left">
             <div className="header-page-title">{pageTitle}</div>
-            <div className="header-system-label">San Pascual E-Tax Mapping System</div>
           </div>
           <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             {/* Notification Bell */}
