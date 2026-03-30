@@ -6,10 +6,11 @@ import 'leaflet/dist/leaflet.css'
 import { Plus, Minus, Maximize, Locate } from 'lucide-react'
 
 // Safer GeoJSON wrapper to catch errors during feature processing
-function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   const map = useMap()
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
+  const lastFlyPinRef = useRef(null)
 
   const formatPinShort = (pinValue) => {
     if (pinValue === null || pinValue === undefined) return 'N/A';
@@ -19,6 +20,11 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     const cleaned = lastPart.trim();
     if (!cleaned) return 'N/A';
     return cleaned.length > 3 ? cleaned.slice(-3) : cleaned;
+  };
+
+  const getPin = (feature) => {
+    const props = feature?.properties || {};
+    return String(props.pin || props.PIN || '').trim();
   };
 
   const isValidGeometry = (feature) => {
@@ -38,6 +44,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   }, [selectedFeature])
 
   // Fit bounds when data changes
+  const fitKey = layerKey || `fit-${geoData?.features?.length || 0}`
   useEffect(() => {
     if (geoData && geoJsonRef.current) {
       try {
@@ -49,7 +56,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         console.warn("Leaflet fitBounds error:", e);
       }
     }
-  }, [geoData, map, layerKey])
+  }, [fitKey, map])
 
   // Clear zoom control and watch for container resize
   useEffect(() => {
@@ -97,10 +104,17 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
 
   // Zoom to selected feature
   useEffect(() => {
-    if (selectedFeature && geoJsonRef.current && !isStatic) {
+    if ((selectedFeature || selectedFeaturePin) && geoJsonRef.current && !isStatic) {
+      const currentPin = selectedFeaturePin || getPin(selectedFeature);
+      if (currentPin && lastFlyPinRef.current === currentPin) {
+        return;
+      }
+      lastFlyPinRef.current = currentPin || null;
       try {
         geoJsonRef.current.eachLayer((layer) => {
-          if (layer.feature === selectedFeature) {
+          const layerPin = getPin(layer.feature);
+          const isMatch = selectedFeaturePin ? layerPin === selectedFeaturePin : layer.feature === selectedFeature;
+          if (isMatch) {
             if (layer.getBounds) {
               const b = layer.getBounds();
               if (b && typeof b.isValid === 'function' && b.isValid()) {
@@ -115,14 +129,15 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         console.warn("Selection fly error:", e);
       }
     }
-  }, [selectedFeature, map, isStatic])
+  }, [selectedFeature, selectedFeaturePin, map, isStatic])
 
   // Update styles for selection
   useEffect(() => {
     if (geoJsonRef.current) {
       try {
         geoJsonRef.current.eachLayer((layer) => {
-          const isSelected = selectedFeature && layer.feature === selectedFeature;
+          const layerPin = getPin(layer.feature);
+          const isSelected = selectedFeaturePin ? layerPin === selectedFeaturePin : (selectedFeature && layer.feature === selectedFeature);
           const props = layer.feature?.properties || {};
           const defaultColor = props.section_color || props.color || '#3388ff';
           const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
@@ -258,7 +273,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     });
 
     layer.on('mouseout', () => {
-      const isSelected = selectedFeatureRef.current === feature;
+      const isSelected = selectedFeaturePin ? getPin(feature) === selectedFeaturePin : (selectedFeatureRef.current === feature);
       try {
         if (isSelected) {
           const defaultColor = props.section_color || props.color || '#3388ff';
@@ -354,7 +369,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   )
 }
 
-export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   return (
     <MapContainer
       style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, background: '#f1f5f9' }}
@@ -374,6 +389,7 @@ export default function MapComponent({ geoData, error, onFeatureSelect, onEnlarg
         onFeatureSelect={onFeatureSelect}
         onEnlargementRequest={onEnlargementRequest}
         selectedFeature={selectedFeature}
+        selectedFeaturePin={selectedFeaturePin}
         isCad={isCad}
         legend={legend}
         backgroundGeoData={backgroundGeoData}

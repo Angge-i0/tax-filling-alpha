@@ -10,14 +10,17 @@ import json
 import math
 import re
 import sqlite3
+import os
 from pathlib import Path
 from django.db.models import Count, Min, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.gis.db.models.aggregates import Union
 from django.conf import settings
 
-from .models import PimSection, PimEnlargement
+from .models import PimSection, PimEnlargement, LotAdjustment
+from .views import _RPT_REPORT_CACHE, _RPT_REPORT_CACHE_FILE
 from .views import api_login_required
 
 BARANGAY_VARIANTS = {
@@ -85,6 +88,15 @@ SMV_CLASS_FOLDERS = {
 }
 
 _SMV_CACHE = {}
+
+_RPT_REPORT_CACHE_FILE = Path(settings.BASE_DIR) / 'maps' / 'static' / 'rpt_report_cache.json'
+
+_RPT_CLASS_META = {
+    'res': {'label': 'RESIDENTIAL', 'area_key': 'area_res', 'assessment_level': 0.05},
+    'agri': {'label': 'AGRICULTURAL', 'area_key': 'area_agri', 'assessment_level': 0.06},
+    'comml': {'label': 'COMMERCIAL', 'area_key': 'area_comml', 'assessment_level': 0.25},
+    'indl': {'label': 'INDUSTRIAL', 'area_key': 'area_indl', 'assessment_level': 0.45},
+}
 
 
 def _slug(value: str) -> str:
@@ -160,6 +172,98 @@ def _load_smv_cache(barangay_name: str, class_key: str) -> dict:
 
     _SMV_CACHE[cache_key] = data
     return data
+
+
+def _safe_num(value):
+    try:
+        if value is None:
+            return 0.0
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+def _update_rpt_cache_for_pin(pin: str, old_rate: float, new_rate: float):
+    if not pin or old_rate == new_rate:
+        return
+    if not _RPT_REPORT_CACHE_FILE.exists():
+        return
+    try:
+        with open(_RPT_REPORT_CACHE_FILE, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+    except Exception:
+        return
+
+    rows = payload.get('assessment_table', {}).get('rows', [])
+    rpt_by_class = payload.get('rpt_by_class', [])
+    if not rows or not rpt_by_class:
+        return
+
+    # Find lot properties
+    lot_props = None
+    lot_barangay = None
+    for row in PimSection.objects.values('barangay_name', 'properties').iterator():
+        props = _normalise_properties(row.get('properties') or {})
+        p = props.get('pin') or props.get('PIN')
+        if p and str(p).strip() == pin:
+            lot_props = props
+            lot_barangay = _canonical_barangay_name(row.get('barangay_name') or '')
+            break
+
+    if not lot_props or not lot_barangay:
+        return
+
+    # Compute deltas
+    delta_market = 0.0
+    delta_assessed = 0.0
+    delta_rpt_by_class = {k: 0.0 for k in _RPT_CLASS_META.keys()}
+    tax_rate = 0.02
+
+    for class_key, meta in _RPT_CLASS_META.items():
+        area = _safe_num(lot_props.get(meta['area_key']))
+        if area <= 0:
+            continue
+        smv = _load_smv_cache(lot_barangay, class_key)
+        unit_val = _safe_num(smv.get(pin, {}).get('unit_value'))
+        if unit_val <= 0:
+            continue
+
+        market_old = area * unit_val * old_rate
+        market_new = area * unit_val * new_rate
+        assessed_old = market_old * meta['assessment_level']
+        assessed_new = market_new * meta['assessment_level']
+
+        delta_market += (market_new - market_old)
+        delta_assessed += (assessed_new - assessed_old)
+        delta_rpt_by_class[class_key] += (assessed_new - assessed_old) * tax_rate
+
+    if delta_market == 0 and delta_assessed == 0:
+        return
+
+    # Update barangay row totals
+    for row in rows:
+        if row.get('barangay') == lot_barangay:
+            row['market_value'] = _safe_num(row.get('market_value')) + delta_market
+            row['assessed_value'] = _safe_num(row.get('assessed_value')) + delta_assessed
+            break
+
+    # Update total row if present
+    totals = payload.get('assessment_table', {}).get('totals')
+    if totals:
+        totals['market_value'] = _safe_num(totals.get('market_value')) + delta_market
+        totals['assessed_value'] = _safe_num(totals.get('assessed_value')) + delta_assessed
+
+    # Update rpt_by_class totals
+    for item in rpt_by_class:
+        key = item.get('key')
+        if key in delta_rpt_by_class:
+            item['amount'] = _safe_num(item.get('amount')) + delta_rpt_by_class[key]
+
+    try:
+        with open(_RPT_REPORT_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
 
 
 def _clean_val(value):
@@ -320,12 +424,26 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
     section_enlargement_qs = enlargement_base_qs.filter(section_number=section_number)
     section_has_enlargement_file = section_enlargement_qs.exists()
 
+    lots_list = list(lots_qs)
+    pins = []
+    for row in lots_list:
+        props = row.properties or {}
+        pin_val = props.get('PIN') or props.get('pin')
+        if pin_val:
+            pins.append(str(pin_val).strip())
+    adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.filter(pin__in=pins)}
+
     features = []
     marker_count = 0
-    for row in lots_qs:
+    for row in lots_list:
         props = _normalise_properties(row.properties)
         props['barangay'] = canonical_name
         props['section_number'] = section_number
+        pin_value = props.get('pin') or props.get('PIN')
+        if pin_value:
+            pin_value = str(pin_value).strip()
+            if pin_value in adj_map:
+                props['adjustment_rate'] = adj_map[pin_value]
         # Strict per-lot rule: show popup/button only when the lot attributes
         # explicitly contain "See enlargement".
         lot_has_enlargement = _has_enlargement_marker(props)
@@ -413,3 +531,41 @@ def pim_section_list(request, barangay_name):
         'barangay': canonical_name,
         'sections': sections,
     })
+
+
+@csrf_exempt
+@api_login_required
+@require_http_methods(["POST"])
+def pim_lot_adjustment(request):
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        payload = {}
+
+    pin = str(payload.get('pin') or '').strip()
+    rate = payload.get('adjustment_rate')
+    try:
+        rate = float(rate)
+    except Exception:
+        rate = None
+
+    if not pin:
+        return JsonResponse({'error': 'pin is required'}, status=400)
+    if rate not in (0.5, 0.75):
+        return JsonResponse({'error': 'adjustment_rate must be 0.5 or 0.75'}, status=400)
+
+    prev = LotAdjustment.objects.filter(pin=pin).first()
+    old_rate = float(prev.adjustment_rate) if prev else 0.75
+
+    obj, _ = LotAdjustment.objects.update_or_create(
+        pin=pin,
+        defaults={'adjustment_rate': rate},
+    )
+
+    # Update report cache incrementally for this pin
+    try:
+        _update_rpt_cache_for_pin(pin, old_rate, rate)
+    except Exception:
+        pass
+
+    return JsonResponse({'pin': obj.pin, 'adjustment_rate': float(obj.adjustment_rate)})

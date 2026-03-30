@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods
 from collections import Counter
 from django.contrib.gis.db.models.aggregates import Union
 from django.contrib.gis.geos import Polygon
-from .models import Barangay, Section, Lot, Issue, CadMap, PimBarangayBoundary, PimSection
+from .models import Barangay, Section, Lot, Issue, CadMap, PimBarangayBoundary, PimSection, LotAdjustment
 
 
 BARANGAY_NAME_MAP = {
@@ -304,6 +304,7 @@ def dashboard_rpt_report(request):
         # Aggregates
         rpt_by_class = {k: 0.0 for k in class_meta.keys()}
         barangay_rows = {}
+        adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.all()}
 
         def safe_num(value):
             try:
@@ -341,6 +342,8 @@ def dashboard_rpt_report(request):
             per_lot_market = 0.0
             per_lot_assessed = 0.0
 
+            lot_adjustment = adj_map.get(pin, default_adjustment)
+
             for class_key, meta in class_meta.items():
                 area = safe_num(props.get(meta['area_key']))
                 if area <= 0:
@@ -349,8 +352,7 @@ def dashboard_rpt_report(request):
                 unit_val = safe_num(smv.get(pin, {}).get('unit_value'))
                 if unit_val <= 0:
                     continue
-
-                market = area * unit_val * default_adjustment
+                market = area * unit_val * lot_adjustment
                 assessed = market * meta['assessment_level']
 
                 per_lot_market += market

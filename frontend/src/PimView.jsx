@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { apiGet, getAccessToken, clearTokens } from './api';
+import { apiGet, apiPost, getAccessToken, clearTokens } from './api';
 import MapComponent from './MapComponent';
 import { Plus, Minus, Locate } from 'lucide-react';
 import L from 'leaflet';
@@ -19,7 +19,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     const [barangayList, setBarangayList] = useState([]);
     const [selectedBarangay, setSelectedBarangay] = useState(null);
     const [selectedSection, setSelectedSection] = useState(null);
-    const [selectedLot, setSelectedLot] = useState(null);
+    const [selectedLotPin, setSelectedLotPin] = useState(null);
 
     // Map Data State
     const [barangayGeoData, setBarangayGeoData] = useState(null);
@@ -32,6 +32,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     const [error, setError] = useState(null);
     const [showEnlargementMap, setShowEnlargementMap] = useState(false);
     const [refinementLevel, setRefinementLevel] = useState(0.75);
+    const [adjustmentStatus, setAdjustmentStatus] = useState(null);
     const [showBarangayPanel, setShowBarangayPanel] = useState(true);
     const [showDetailsPanel, setShowDetailsPanel] = useState(true);
     const [mapInstance, setMapInstance] = useState(null);
@@ -131,7 +132,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
         }
 
         setError(null);
-        setSelectedLot(null);
+        setSelectedLotPin(null);
         setShowEnlargementMap(false);
 
         const cacheKey = `${selectedBarangay}-${selectedSection}`;
@@ -146,7 +147,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                     if (data.error) throw new Error(data.error);
                     lotDataCache.current[cacheKey] = data;
                     setLotGeoData(data);
-                    setSelectedLot(null);
+                    setSelectedLotPin(null);
                     setShowEnlargementMap(false);
                     setIsLoadingSection(false);
                 })
@@ -157,9 +158,54 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
         }
     }, [selectedSection, selectedBarangay]);
 
+    const normalizePin = (value) => (value ? String(value).trim() : '');
+    const getFeaturePin = (feature) => normalizePin(feature?.properties?.pin || feature?.properties?.PIN);
+
+    const selectedLot = useMemo(() => {
+        if (!selectedLotPin || !lotGeoData?.features?.length) return null;
+        return lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin) || null;
+    }, [selectedLotPin, lotGeoData]);
+
+    useEffect(() => {
+        if (!selectedLot?.properties) return;
+        const saved = selectedLot.properties.adjustment_rate;
+        if (saved === 0.5 || saved === 0.75) {
+            setRefinementLevel(saved);
+        } else {
+            setRefinementLevel(0.75);
+        }
+        setAdjustmentStatus(null);
+    }, [selectedLot]);
+
+    const applyLocalAdjustment = (pin, rate) => {
+        const normPin = normalizePin(pin);
+        if (!normPin) return;
+        setLotGeoData(prev => {
+            if (!prev?.features) return prev;
+            let matched = null;
+            const updated = prev.features.map(f => {
+                const fPin = normalizePin(f?.properties?.pin || f?.properties?.PIN);
+                if (fPin !== normPin) return f;
+                const nextFeature = {
+                    ...f,
+                    properties: { ...f.properties, adjustment_rate: rate }
+                };
+                matched = nextFeature;
+                return nextFeature;
+            });
+            if (matched) {
+                setSelectedLotPin(normPin);
+            }
+            return { ...prev, features: updated };
+        });
+    };
+
     const loadEnlargementForSection = (sectionNum, lotFeature = null) => {
         if (!selectedBarangay || sectionNum === null) return;
-        if (lotFeature) setSelectedLot(lotFeature);
+        if (lotFeature) {
+            const pin = getFeaturePin(lotFeature);
+            if (pin) setSelectedLotPin(pin);
+        }
         apiGet(`/api/pim/barangays/${selectedBarangay}/sections/${sectionNum}/enlargement/`)
             .then(res => res.json())
             .then(data => {
@@ -187,15 +233,16 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
         }
         else if (feature.properties.ADM4_EN && selectedBarangay && feature.properties.ADM4_EN !== selectedBarangay) {
             setSelectedSection(null);
-            setSelectedLot(null);
+            setSelectedLotPin(null);
             setSelectedBarangay(feature.properties.ADM4_EN);
         }
         else if (feature.properties.hasOwnProperty('section_number') && !feature.properties.hasOwnProperty('PIN') && !feature.properties.hasOwnProperty('pin')) {
-            setSelectedLot(null);
+            setSelectedLotPin(null);
             setSelectedSection(feature.properties.section_number);
         }
         else if (feature.properties.hasOwnProperty('PIN') || feature.properties.hasOwnProperty('pin') || feature.properties.hasOwnProperty('owner')) {
-            setSelectedLot(feature);
+            const pin = getFeaturePin(feature);
+            if (pin) setSelectedLotPin(pin);
         }
     };
 
@@ -488,7 +535,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                             </button>
                         )}
                         {selectedSection !== null && !showEnlargementMap && (
-                            <button onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLot(null); }} style={{ background: '#f8fafc', border: '0.0625rem solid #cbd5e1', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
+                            <button onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLotPin(null); }} style={{ background: '#f8fafc', border: '0.0625rem solid #cbd5e1', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
                                 Back to Sections
                             </button>
                         )}
@@ -506,7 +553,19 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                             Loading map data...
                         </div>
                     )}
-                    <MapComponent geoData={activeGeoData} error={error} onFeatureSelect={handleMapFeatureSelect} onEnlargementRequest={handlePopupEnlargement} selectedFeature={activeFeature} backgroundGeoData={backgroundGeoData} isBackgroundInteractive={false} showCustomControls={false} onMapReady={setMapInstance} layerKey={activeLayerKey} />
+                    <MapComponent
+                        geoData={activeGeoData}
+                        error={error}
+                        onFeatureSelect={handleMapFeatureSelect}
+                        onEnlargementRequest={handlePopupEnlargement}
+                        selectedFeature={activeFeature}
+                        selectedFeaturePin={selectedLotPin || (selectedLot ? getFeaturePin(selectedLot) : null)}
+                        backgroundGeoData={backgroundGeoData}
+                        isBackgroundInteractive={false}
+                        showCustomControls={false}
+                        onMapReady={setMapInstance}
+                        layerKey={activeLayerKey}
+                    />
                 </div>
             </div>
 
@@ -531,13 +590,17 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                     <>
                         {selectedLot && lotGeoData?.features ? (
                             <div className="lot-details">
-                                <button onClick={() => setSelectedLot(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0 0 0.9375rem 0', fontWeight: 'bold' }}>
+                                <button onClick={() => setSelectedLotPin(null)} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', padding: '0 0 0.9375rem 0', fontWeight: 'bold' }}>
                                     &larr; Back to Lots
                                 </button>
                                 <div className="lot-details-grid">
                                     <div className="lot-detail-field full">
                                         <label>LOT / PARCEL</label>
-                                        <select value={lotGeoData.features.indexOf(selectedLot)} onChange={(e) => setSelectedLot(lotGeoData.features[e.target.value])} className="lot-select">
+                                        <select value={selectedLot ? lotGeoData.features.indexOf(selectedLot) : ''} onChange={(e) => {
+                                            const feature = lotGeoData.features[e.target.value];
+                                            const pin = getFeaturePin(feature);
+                                            if (pin) setSelectedLotPin(pin);
+                                        }} className="lot-select">
                                             {lotGeoData.features.map((f, idx) => (
                                                 <option key={idx} value={idx}>Lot {String(f.properties.pin || '').split('-').pop() || (idx + 1)}</option>
                                             ))}
@@ -574,9 +637,52 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                                     </div>
                                     <div className="lot-detail-card full specialty"><label>DIRT ROAD ACCESS (ADJUSTMENT)</label>
                                         <div className="adj-buttons">
-                                            <button className={refinementLevel === 0.75 ? 'active' : ''} onClick={() => setRefinementLevel(0.75)}>With Access (0.75)</button>
-                                            <button className={refinementLevel === 0.50 ? 'active' : ''} onClick={() => setRefinementLevel(0.50)}>No Access (0.50)</button>
+                                            <button
+                                                className={refinementLevel === 0.75 ? 'active' : ''}
+                                                onClick={() => {
+                                                    setRefinementLevel(0.75);
+                                                    const pin = selectedLot?.properties?.pin || selectedLot?.properties?.PIN;
+                                                    if (pin) {
+                                                        setAdjustmentStatus('saving');
+                                                        applyLocalAdjustment(pin, 0.75);
+                                                        apiPost('/api/pim/lots/adjustment/', { pin, adjustment_rate: 0.75 })
+                                                            .then(() => {
+                                                                setAdjustmentStatus('saved');
+                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch {}
+                                                            })
+                                                            .catch(() => setAdjustmentStatus('error'));
+                                                    }
+                                                }}
+                                            >
+                                                With Access (0.75)
+                                            </button>
+                                            <button
+                                                className={refinementLevel === 0.50 ? 'active' : ''}
+                                                onClick={() => {
+                                                    setRefinementLevel(0.50);
+                                                    const pin = selectedLot?.properties?.pin || selectedLot?.properties?.PIN;
+                                                    if (pin) {
+                                                        setAdjustmentStatus('saving');
+                                                        applyLocalAdjustment(pin, 0.5);
+                                                        apiPost('/api/pim/lots/adjustment/', { pin, adjustment_rate: 0.5 })
+                                                            .then(() => {
+                                                                setAdjustmentStatus('saved');
+                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch {}
+                                                            })
+                                                            .catch(() => setAdjustmentStatus('error'));
+                                                    }
+                                                }}
+                                            >
+                                                No Access (0.50)
+                                            </button>
                                         </div>
+                                        {adjustmentStatus && (
+                                            <div style={{ marginTop: '0.4rem', fontSize: '0.75em', color: adjustmentStatus === 'error' ? '#ef4444' : '#64748b' }}>
+                                                {adjustmentStatus === 'saving' && 'Saving adjustment...'}
+                                                {adjustmentStatus === 'saved' && 'Saved.'}
+                                                {adjustmentStatus === 'error' && 'Save failed. Check backend/migrations.'}
+                                            </div>
+                                        )}
                                     </div>
                                     {computedTax?.perClass?.length > 1 && (
                                         <div className="lot-detail-card full">
@@ -612,7 +718,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                                 {isLoadingSection ? <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>Loading lots...</div> : (lotGeoData?.features?.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
                                         {lotGeoData.features.map((f, i) => (
-                                            <button key={i} onClick={() => setSelectedLot(f)} style={{ textAlign: 'left', padding: '0.5rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.25rem', background: '#fff', cursor: 'pointer', color: '#1e3a5f' }}>
+                                            <button key={i} onClick={() => {
+                                                const pin = getFeaturePin(f);
+                                                if (pin) setSelectedLotPin(pin);
+                                            }} style={{ textAlign: 'left', padding: '0.5rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.25rem', background: '#fff', cursor: 'pointer', color: '#1e3a5f' }}>
                                                 {f.properties?.owner || `PIN: ${f.properties?.pin || 'Unknown'}`}
                                                 {f.properties?.arp_no && <div style={{ fontSize: '0.8em', color: '#64748b' }}>ARP: {f.properties.arp_no}</div>}
                                             </button>

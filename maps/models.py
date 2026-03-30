@@ -94,6 +94,18 @@ class Issue(models.Model):
         return f"[{self.status}] {self.description[:60]}"
 
 
+class LotAdjustment(models.Model):
+    pin = models.CharField(max_length=50, unique=True)
+    adjustment_rate = models.DecimalField(max_digits=4, decimal_places=2, default=0.75)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['pin']
+
+    def __str__(self):
+        return f"{self.pin} - {self.adjustment_rate}"
+
+
 class CadAlalum(gis_models.Model):
     id = models.BigIntegerField(primary_key=True)
     geom = gis_models.GeometryField(srid=4326)

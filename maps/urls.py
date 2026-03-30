@@ -7,7 +7,7 @@ from .views import (
 )
 from .pim_views import (
     pim_barangay_list, pim_barangay_geojson, pim_section_list,
-    pim_section_lots_geojson, pim_enlargement_geojson
+    pim_section_lots_geojson, pim_enlargement_geojson, pim_lot_adjustment
 )
 from .maintenance_views import maintenance_files, maintenance_delete_file
 
@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/pim/barangays/<str:barangay_name>/sections/', pim_section_list, name='pim_section_list'),
     path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/lots/', pim_section_lots_geojson, name='pim_section_lots_geojson'),
     path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/enlargement/', pim_enlargement_geojson, name='pim_enlargement_geojson'),
+    path('api/pim/lots/adjustment/', pim_lot_adjustment, name='pim_lot_adjustment'),
     
     # ── Maintenance Routes ──
     path('api/maintenance/files/', maintenance_files, name='maintenance_files'),

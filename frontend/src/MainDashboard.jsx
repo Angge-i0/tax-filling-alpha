@@ -7,25 +7,31 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function MainDashboard() {
   const [report, setReport] = useState(null);
-  const [pollCount, setPollCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     apiGet('/api/dashboard/rpt-report/').then(r => r.json()).then(setReport);
   }, []);
 
+  const refreshReport = () => {
+    setIsRefreshing(true);
+    apiGet('/api/dashboard/rpt-report/?sync=1')
+      .then(r => r.json())
+      .then(setReport)
+      .finally(() => setIsRefreshing(false));
+    try { localStorage.removeItem('rpt_report_dirty'); } catch {}
+  };
+
   useEffect(() => {
-    if (report?.status === 'generating') {
-      const timer = setTimeout(() => {
-        const url = pollCount >= 2 ? '/api/dashboard/rpt-report/?sync=1' : '/api/dashboard/rpt-report/';
-        apiGet(url).then(r => r.json()).then(setReport);
-        setPollCount((c) => c + 1);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-    if (report?.status !== 'generating' && pollCount !== 0) {
-      setPollCount(0);
-    }
-  }, [report?.status]);
+    const timer = setInterval(() => {
+      const dirty = localStorage.getItem('rpt_report_dirty');
+      if (dirty) {
+        apiGet('/api/dashboard/rpt-report/').then(r => r.json()).then(setReport);
+        localStorage.removeItem('rpt_report_dirty');
+      }
+    }, 1500);
+    return () => clearInterval(timer);
+  }, []);
 
   const hasRpt = Array.isArray(report?.rpt_by_class);
   const barData = hasRpt ? {
@@ -74,6 +80,26 @@ export default function MainDashboard() {
           )}
         </div>
       </div>
+
+      {(() => {
+        const dirty = typeof window !== 'undefined' ? localStorage.getItem('rpt_report_dirty') : null;
+        if (!dirty) return null;
+        return (
+          <div style={{ margin: '0.75rem auto 1rem', maxWidth: '40rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.85rem', color: '#b45309', marginBottom: '0.5rem' }}>
+              Report values may be outdated. Click to refresh.
+            </div>
+            <button
+              type="button"
+              onClick={refreshReport}
+              disabled={isRefreshing}
+              style={{ background: '#0f1d35', color: '#fff', border: 'none', padding: '0.45rem 0.85rem', borderRadius: '0.4rem', cursor: 'pointer' }}
+            >
+              {isRefreshing ? 'Refreshing…' : 'Refresh Report Now'}
+            </button>
+          </div>
+        );
+      })()}
 
       <div className="rpt-class-list">
         <div className="rpt-class-col">
