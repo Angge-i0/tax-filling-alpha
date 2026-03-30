@@ -227,7 +227,7 @@ function App() {
   const displayUser = fullName || user || 'User'
   const avatarLetter = displayUser ? displayUser[0].toUpperCase() : 'U'
   const pageTitle = {
-    'main-dashboard': 'Main Dashboard',
+    'main-dashboard': 'Dashboard',
     'map-cad': 'CAD Map Overview',
     'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
