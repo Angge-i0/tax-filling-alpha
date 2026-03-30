@@ -11,6 +11,16 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
 
+  const formatPinShort = (pinValue) => {
+    if (pinValue === null || pinValue === undefined) return 'N/A';
+    const raw = String(pinValue).trim();
+    if (!raw) return 'N/A';
+    const lastPart = raw.split('-').pop() || raw;
+    const cleaned = lastPart.trim();
+    if (!cleaned) return 'N/A';
+    return cleaned.length > 3 ? cleaned.slice(-3) : cleaned;
+  };
+
   useEffect(() => {
     selectedFeatureRef.current = selectedFeature
   }, [selectedFeature])
@@ -167,9 +177,13 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           className: 'section-tooltip'
         });
       } else if (props.hasOwnProperty('pin') || props.hasOwnProperty('PIN') || props.hasOwnProperty('owner')) {
-        const owner = props.owner || 'Unknown';
         const pin = props.pin || props.PIN || 'N/A';
-        layer.bindTooltip(`LOT: ${pin}<br/>${owner}`, { sticky: true });
+        const pinShort = formatPinShort(pin);
+        layer.bindTooltip(`${pinShort}`, {
+          permanent: true,
+          direction: 'center',
+          className: 'lot-tooltip'
+        });
         if (props.has_enlargement) {
           const popupWrap = L.DomUtil.create('div');
           const popupTitle = L.DomUtil.create('b', '', popupWrap);
