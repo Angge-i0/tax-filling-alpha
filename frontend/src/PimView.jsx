@@ -334,21 +334,29 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
             }
         }
 
-        const unitValue = genericUnit;
+        const baseClasses = perClass.filter(cls => cls.area > 0 && !['rrw', 'exempt'].includes(cls.key));
+        const primaryClass = baseClasses.reduce((acc, cls) => {
+            if (!acc) return cls;
+            return cls.area > acc.area ? cls : acc;
+        }, null);
+        const rrwAssessmentLevel = primaryClass ? primaryClass.assessmentLevel : 0;
 
         const computed = perClass
             .map(cls => {
                 if (cls.area <= 0) return null;
+                let unitValue = getNumberProp(cls.unitKeys || []);
+                if (unitValue <= 0 && genericUnit > 0) unitValue = genericUnit;
                 const adjustment = cls.key === 'rrw' ? 0.20 : baseAdjustment;
                 const marketValue = cls.area * unitValue * adjustment;
-                const assessedValue = marketValue * cls.assessmentLevel;
+                const assessmentLevel = cls.key === 'rrw' ? rrwAssessmentLevel : cls.assessmentLevel;
+                const assessedValue = marketValue * assessmentLevel;
                 return {
                     key: cls.key,
                     label: cls.label,
                     area: cls.area,
                     unitValue,
                     adjustment,
-                    assessmentLevel: cls.assessmentLevel,
+                    assessmentLevel,
                     marketValue,
                     assessedValue
                 };

@@ -21,6 +21,18 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     return cleaned.length > 3 ? cleaned.slice(-3) : cleaned;
   };
 
+  const isValidGeometry = (feature) => {
+    const geom = feature?.geometry;
+    if (!geom || !geom.type || !Array.isArray(geom.coordinates)) return false;
+    const coords = geom.coordinates;
+    if (geom.type === 'Point') return coords.length >= 2;
+    if (geom.type === 'LineString') return coords.length > 1;
+    if (geom.type === 'Polygon') return coords.length > 0 && Array.isArray(coords[0]) && coords[0].length > 2;
+    if (geom.type === 'MultiLineString') return coords.length > 0 && coords.some(line => Array.isArray(line) && line.length > 1);
+    if (geom.type === 'MultiPolygon') return coords.length > 0 && coords.some(poly => Array.isArray(poly) && poly.length > 0 && Array.isArray(poly[0]) && poly[0].length > 2);
+    return false;
+  };
+
   useEffect(() => {
     selectedFeatureRef.current = selectedFeature
   }, [selectedFeature])
@@ -315,7 +327,8 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
             key={activeKey} 
             ref={geoJsonRef} 
             data={geoData} 
-            onEachFeature={onEachFeature} 
+            onEachFeature={onEachFeature}
+            filter={isValidGeometry}
         />
       )}
 

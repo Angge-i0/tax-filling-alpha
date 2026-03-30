@@ -1541,6 +1541,7 @@ body {
     font-weight: bold;
     padding: 4px 8px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
   }
 
   .lot-tooltip {
@@ -1553,6 +1554,141 @@ body {
     padding: 2px 4px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
     pointer-events: none;
+  }
+
+  .leaflet-tooltip {
+    pointer-events: none;
+  }
+
+  /* REAL PROPERTY TAX DASHBOARD */
+  .rpt-page {
+    padding: 1.5rem 1.5rem 2.5rem;
+    color: #0f1d35;
+    font-family: "Segoe UI", "Segoe UI Symbol", "Noto Sans", "Arial Unicode MS", Arial, sans-serif;
+  }
+
+  .rpt-header {
+    text-align: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .rpt-header h1 {
+    font-size: 2rem;
+    letter-spacing: 0.08rem;
+    margin: 0;
+  }
+
+  .rpt-header p {
+    margin: 0.35rem 0 0;
+    font-weight: 600;
+  }
+
+  .rpt-chart-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1rem 1.25rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.08);
+  }
+
+  .rpt-chart {
+    height: 16rem;
+  }
+
+  .rpt-class-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    max-width: 40rem;
+    margin: 1.5rem auto 2rem;
+    font-weight: 800;
+  }
+
+  .rpt-class-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .rpt-class-col.right {
+    text-align: right;
+  }
+
+  .rpt-class-row {
+    font-size: 1.05rem;
+  }
+
+  .rpt-assess-header {
+    text-align: center;
+    margin: 2rem 0 1rem;
+  }
+
+  .rpt-assess-header h2 {
+    font-size: 1.6rem;
+    margin: 0;
+    letter-spacing: 0.06rem;
+  }
+
+  .rpt-assess-header p {
+    margin: 0.35rem 0 0;
+    font-weight: 600;
+  }
+
+  .rpt-table-wrap {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.08);
+    overflow-x: auto;
+  }
+
+  .rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .rpt-table thead th {
+    background: #d97706;
+    color: #0f1d35;
+    border: 1px solid #cbd5e1;
+    padding: 0.4rem 0.5rem;
+    text-align: center;
+    font-weight: 800;
+  }
+
+  .rpt-table tbody td {
+    border: 1px solid #cbd5e1;
+    padding: 0.35rem 0.5rem;
+    text-align: center;
+  }
+
+  .rpt-table tbody td:first-child {
+    text-align: left;
+    font-weight: 700;
+  }
+
+  .rpt-total-row td {
+    font-weight: 800;
+    background: #fef3c7;
+  }
+
+  .rpt-note {
+    margin-top: 1.25rem;
+    color: #b91c1c;
+    font-size: 0.85rem;
+  }
+
+  .rpt-note span {
+    font-weight: 800;
+  }
+
+  .rpt-money {
+    white-space: nowrap;
+  }
+
+  .rpt-currency {
+    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans", "Arial Unicode MS", "Segoe UI", Arial, sans-serif;
+    margin-right: 0.15rem;
   }
 
 /* ════════════════════════════════════════

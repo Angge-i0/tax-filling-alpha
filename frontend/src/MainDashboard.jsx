@@ -1,237 +1,144 @@
-import { useState, useEffect, useRef } from 'react';
-import { Bar, Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
-import { apiGet, apiPost } from './api';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+import { useState, useEffect } from 'react';
+import { Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { apiGet } from './api';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-export default function MainDashboard({ isStaff }) {
-  const [stats, setStats] = useState(null);
-  const [landuse, setLanduse] = useState(null);
-  const [issues, setIssues] = useState([]);
-  const [showReport, setShowReport] = useState(false);
-  const reportRef = useRef(null);
+export default function MainDashboard() {
+  const [report, setReport] = useState(null);
+  const [pollCount, setPollCount] = useState(0);
 
   useEffect(() => {
-    apiGet('/api/dashboard/stats/').then(r => r.json()).then(setStats);
-    apiGet('/api/dashboard/landuse/').then(r => r.json()).then(setLanduse);
-    if (isStaff) fetchIssues();
-  }, [isStaff]);
+    apiGet('/api/dashboard/rpt-report/').then(r => r.json()).then(setReport);
+  }, []);
 
-  // Re-fetch issues every 30 seconds to auto-remove solved ones
   useEffect(() => {
-    if (!isStaff) return;
-    const id = setInterval(fetchIssues, 30000);
-    return () => clearInterval(id);
-  }, [isStaff]);
+    if (report?.status === 'generating') {
+      const timer = setTimeout(() => {
+        const url = pollCount >= 2 ? '/api/dashboard/rpt-report/?sync=1' : '/api/dashboard/rpt-report/';
+        apiGet(url).then(r => r.json()).then(setReport);
+        setPollCount((c) => c + 1);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    if (report?.status !== 'generating' && pollCount !== 0) {
+      setPollCount(0);
+    }
+  }, [report?.status]);
 
-  const fetchIssues = () => {
-    apiGet('/api/dashboard/issues/').then(r => r.json()).then(d => setIssues(d.issues || []));
-  };
-
-  const markSolved = async (issueId) => {
-    await apiPost(`/api/dashboard/issues/${issueId}/solve/`, {});
-    fetchIssues();
-  };
-
-  // ── Chart data ──
-  const barData = landuse ? {
-    labels: landuse.labels,
+  const hasRpt = Array.isArray(report?.rpt_by_class);
+  const barData = hasRpt ? {
+    labels: report.rpt_by_class.map(c => c.label),
     datasets: [{
-      label: 'Number of Lots/Parcels',
-      data: landuse.values,
-      backgroundColor: [
-        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-        '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'
-      ],
+      label: 'Real Property Tax',
+      data: report.rpt_by_class.map(c => c.amount),
+      backgroundColor: ['#6b0f1a', '#7a1420', '#8c1b28', '#a52533'],
       borderRadius: 6,
-    }]
-  } : null;
-
-  const pieData = landuse ? {
-    labels: landuse.labels,
-    datasets: [{
-      data: landuse.values,
-      backgroundColor: [
-        '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-        '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'
-      ],
-      borderWidth: 2,
-      borderColor: '#ffffff',
     }]
   } : null;
 
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false }, title: { display: true, text: 'Land Use Distribution', font: { size: 14, weight: '700' }, color: '#1e3a5f' } },
-    scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45, minRotation: 0, font: { size: 10 } } } }
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: (v) => Number(v).toLocaleString() } },
+      x: { ticks: { font: { size: 10, weight: '700' } } }
+    }
   };
 
-  const pieOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } }, title: { display: true, text: 'Land Use Share', font: { size: 14, weight: '700' }, color: '#1e3a5f' } }
+  const formatMoney = (val) => {
+    const num = Number(val || 0);
+    return (
+      <span className="rpt-money">
+        <span className="rpt-currency">₱</span>
+        {num.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      </span>
+    );
   };
-
-  // ── Export functions ──
-  const exportPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.setTextColor(15, 29, 53);
-    doc.text('San Pascual E-TaxMap — Issues Report', 14, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-    doc.text(`Municipality of San Pascual, Batangas`, 14, 34);
-
-    const rows = issues.map((iss, i) => [
-      i + 1,
-      iss.description,
-      iss.status === 'solved' ? 'SOLVED' : 'UNSOLVED'
-    ]);
-
-    autoTable(doc, {
-      startY: 42,
-      head: [['#', 'Issue Description', 'Status']],
-      body: rows,
-      headStyles: { fillColor: [15, 29, 53], textColor: 255, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [240, 244, 248] },
-      styles: { fontSize: 9, cellPadding: 4 },
-      columnStyles: { 0: { cellWidth: 12 }, 2: { cellWidth: 28 } },
-    });
-
-    doc.save('ETaxMap_Issues_Report.pdf');
-  };
-
-  const exportExcel = () => {
-    const data = issues.map((iss, i) => ({
-      '#': i + 1,
-      'Issue Description': iss.description,
-      'Status': iss.status === 'solved' ? 'SOLVED' : 'UNSOLVED'
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Issues');
-    XLSX.writeFile(wb, 'ETaxMap_Issues_Report.xlsx');
-  };
-
-  const statCards = [
-    { label: 'Total Barangays', value: stats?.total_barangays ?? '—', icon: '🏘️', color: '#3b82f6' },
-    { label: 'Total Sections', value: stats?.total_sections ?? '—', icon: '📐', color: '#10b981' },
-    { label: 'Total Lots / Parcels', value: stats?.total_lots ?? '—', icon: '📋', color: '#f59e0b' },
-  ];
-  if (isStaff) {
-    statCards.push({ label: 'Issues Found', value: stats?.total_issues ?? '—', icon: '⚠️', color: '#ef4444' });
-  }
 
   return (
-    <div className="md-page">
-      <h1 className="md-title">Main Dashboard</h1>
-      <p className="md-subtitle">Municipality of San Pascual, Batangas — E-TaxMap Overview</p>
-
-      {/* Stat cards */}
-      <div className="md-cards">
-        {statCards.map(c => (
-          <div key={c.label} className="md-card" style={{ borderTopColor: c.color }}>
-            <div className="md-card-icon">{c.icon}</div>
-            <div className="md-card-value">{typeof c.value === 'number' ? c.value.toLocaleString() : c.value}</div>
-            <div className="md-card-label">{c.label}</div>
-          </div>
-        ))}
+    <div className="rpt-page">
+      <div className="rpt-header">
+        <h1>REAL PROPERTY TAX</h1>
+        <p>as of {report?.as_of_year || new Date().getFullYear()}</p>
       </div>
 
-      {/* Charts */}
-      <div className="md-charts">
-        <div className="md-chart-box">
-          {barData && <Bar data={barData} options={barOptions} />}
-        </div>
-        <div className="md-chart-box">
-          {pieData && <Pie data={pieData} options={pieOptions} />}
+      <div className="rpt-chart-card">
+        <div className="rpt-chart">
+          {barData ? <Bar data={barData} options={barOptions} /> : (
+            <div style={{ textAlign: 'center', color: '#64748b', padding: '2rem 0' }}>
+              {report?.error ? report.error : (report?.status === 'generating' ? 'Generating report data... (auto-refreshing)' : 'Loading report data...')}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Issues table (Admin only) */}
-      {isStaff && (
-        <>
-          <div className="md-section-header">
-            <h2 className="md-section-title">Issues Found</h2>
-            <div className="md-section-actions">
-              <button className="md-btn-secondary" onClick={() => setShowReport(true)}>📊 Reports & Analytics</button>
-            </div>
-          </div>
-
-          <div className="md-table-wrap">
-            <table className="md-table">
-              <thead>
-                <tr><th>ISSUE DESCRIPTION</th><th>STATUS</th></tr>
-              </thead>
-              <tbody>
-                {issues.length === 0 && (
-                  <tr><td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem', color: '#999' }}>No issues found.</td></tr>
-                )}
-                {issues.map(iss => (
-                  <tr key={iss.id}>
-                    <td>{iss.description}</td>
-                    <td>
-                      {iss.status === 'solved' ? (
-                        <span className="md-badge solved">SOLVED</span>
-                      ) : (
-                        <span className="md-badge unsolved" onClick={() => markSolved(iss.id)} title="Click to mark as solved" style={{ cursor: 'pointer' }}>
-                          UNSOLVED
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* Reports modal */}
-      {showReport && (
-        <div className="md-report-overlay" onClick={() => setShowReport(false)}>
-          <div className="md-report-modal" onClick={e => e.stopPropagation()}>
-            <div className="md-report-header">
-              <h3>Reports & Analytics — Issues</h3>
-              <button className="md-report-close" onClick={() => setShowReport(false)}>✕</button>
-            </div>
-            <div className="md-report-actions">
-              <button className="md-btn-primary" onClick={exportPDF}>📄 Export as PDF</button>
-              <button className="md-btn-primary" onClick={exportExcel}>📊 Export as Excel</button>
-            </div>
-            {/* A4 Preview */}
-            <div className="md-a4-preview" ref={reportRef}>
-              <div className="md-a4-header">
-                <h2>San Pascual E-TaxMap</h2>
-                <p>Electronic Tax Mapping System · Municipality of San Pascual, Batangas</p>
-                <p className="md-a4-date">Report generated: {new Date().toLocaleString()}</p>
-              </div>
-              <h3 className="md-a4-section-title">Issues Report</h3>
-              <p className="md-a4-summary">Total issues: {issues.length} &nbsp;|&nbsp; Unsolved: {issues.filter(i => i.status === 'unsolved').length} &nbsp;|&nbsp; Solved: {issues.filter(i => i.status === 'solved').length}</p>
-              <table className="md-a4-table">
-                <thead><tr><th>#</th><th>Issue Description</th><th>Status</th></tr></thead>
-                <tbody>
-                  {issues.map((iss, i) => (
-                    <tr key={iss.id}>
-                      <td>{i + 1}</td>
-                      <td>{iss.description}</td>
-                      <td className={iss.status === 'solved' ? 'solved-text' : 'unsolved-text'}>
-                        {iss.status === 'solved' ? 'SOLVED' : 'UNSOLVED'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div className="rpt-class-list">
+        <div className="rpt-class-col">
+          {report?.rpt_by_class?.map(item => (
+            <div key={item.key} className="rpt-class-row">{item.label}</div>
+          ))}
         </div>
-      )}
+        <div className="rpt-class-col right">
+          {report?.rpt_by_class?.map(item => (
+            <div key={item.key} className="rpt-class-row">{formatMoney(item.amount)}</div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rpt-assess-header">
+        <h2>ASSESSMENT</h2>
+        <p>as of {report?.as_of_year || new Date().getFullYear()}</p>
+      </div>
+
+      <div className="rpt-table-wrap">
+        <table className="rpt-table">
+          <thead>
+            <tr>
+              <th rowSpan={2}>Barangay</th>
+              <th colSpan={4}>Number of Parcel</th>
+              <th rowSpan={2}>Market Value</th>
+              <th rowSpan={2}>Assessed Value</th>
+            </tr>
+            <tr>
+              <th>Agricultural</th>
+              <th>Residential</th>
+              <th>Industrial</th>
+              <th>Commercial</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report?.assessment_table?.rows?.map(row => (
+              <tr key={row.barangay}>
+                <td>{row.barangay}</td>
+                <td>{row.counts.agri}</td>
+                <td>{row.counts.res}</td>
+                <td>{row.counts.indl}</td>
+                <td>{row.counts.comml}</td>
+                <td>{formatMoney(row.market_value)}</td>
+                <td>{formatMoney(row.assessed_value)}</td>
+              </tr>
+            ))}
+            {report?.assessment_table?.totals && (
+              <tr className="rpt-total-row">
+                <td>{report.assessment_table.totals.barangay}</td>
+                <td>{report.assessment_table.totals.counts.agri}</td>
+                <td>{report.assessment_table.totals.counts.res}</td>
+                <td>{report.assessment_table.totals.counts.indl}</td>
+                <td>{report.assessment_table.totals.counts.comml}</td>
+                <td>{formatMoney(report.assessment_table.totals.market_value)}</td>
+                <td>{formatMoney(report.assessment_table.totals.assessed_value)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rpt-note">
+        <span>Note:</span> {report?.notes || 'Data depends on availability. Only parcels with details are included.'}
+      </div>
     </div>
   );
 }

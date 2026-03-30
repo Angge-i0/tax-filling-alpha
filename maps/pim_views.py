@@ -9,10 +9,13 @@ Tables:
 import json
 import math
 import re
+import sqlite3
+from pathlib import Path
 from django.db.models import Count, Min, Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.gis.db.models.aggregates import Union
+from django.conf import settings
 
 from .models import PimSection, PimEnlargement
 from .views import api_login_required
@@ -73,6 +76,90 @@ SECTION_COLORS = [
     '#14b8a6', '#e11d48', '#8b5cf6', '#0ea5e9', '#d946ef',
     '#65a30d', '#dc2626', '#0891b2', '#7c3aed', '#ca8a04',
 ]
+
+SMV_CLASS_FOLDERS = {
+    'res': 'Residential',
+    'agri': 'Agricultural',
+    'comml': 'Commercial',
+    'indl': 'Industrial',
+}
+
+_SMV_CACHE = {}
+
+
+def _slug(value: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '', (value or '').lower())
+
+
+def _find_smv_files(class_folder: str, barangay_name: str) -> list[Path]:
+    base_dir = Path(settings.BASE_DIR) / 'maps' / 'static' / 'SMV' / class_folder
+    if not base_dir.exists():
+        return []
+    variants = _barangay_variants(barangay_name)
+    needles = [_slug(v) for v in variants] + [_slug(barangay_name)]
+    matches = []
+    for file in base_dir.glob('*.gpkg'):
+        slug = _slug(file.stem)
+        if any(n and n in slug for n in needles):
+            matches.append(file)
+    return matches
+
+
+def _load_smv_cache(barangay_name: str, class_key: str) -> dict:
+    cache_key = (barangay_name, class_key)
+    if cache_key in _SMV_CACHE:
+        return _SMV_CACHE[cache_key]
+
+    class_folder = SMV_CLASS_FOLDERS.get(class_key)
+    if not class_folder:
+        _SMV_CACHE[cache_key] = {}
+        return {}
+
+    files = _find_smv_files(class_folder, barangay_name)
+    data = {}
+    for file_path in files:
+        try:
+            conn = sqlite3.connect(str(file_path))
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [r[0] for r in cur.fetchall()]
+            for table in tables:
+                if table.startswith('gpkg_') or table.startswith('rtree_') or table == 'sqlite_sequence':
+                    continue
+                cur.execute(f"PRAGMA table_info('{table}')")
+                cols = [c[1] for c in cur.fetchall()]
+                if not cols:
+                    continue
+                pin_col = next((c for c in cols if str(c).lower() == 'pin'), None)
+                unit_col = next((c for c in cols if 'unit value' in str(c).lower()), None)
+                rrw_col = next((c for c in cols if 'area rrw' in str(c).lower()), None)
+                if not pin_col or not unit_col:
+                    continue
+                cur.execute(f"SELECT \"{pin_col}\", \"{unit_col}\"{f', \"{rrw_col}\"' if rrw_col else ''} FROM '{table}'")
+                for row in cur.fetchall():
+                    pin = str(row[0]).strip() if row[0] is not None else ''
+                    if not pin:
+                        continue
+                    if pin in data:
+                        continue
+                    unit_val = row[1]
+                    rrw_val = None
+                    if rrw_col:
+                        rrw_val = row[2]
+                    data[pin] = {
+                        'unit_value': unit_val,
+                        'area_rrw': rrw_val,
+                    }
+        except Exception:
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    _SMV_CACHE[cache_key] = data
+    return data
 
 
 def _clean_val(value):
