@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    LayoutDashboard, Users, Map, Eye, HelpCircle, Info, LogOut,
+    LayoutDashboard, Map, Eye, HelpCircle, Info, LogOut,
     ChevronDown, ChevronRight, BarChart3, Layers, Search
 } from 'lucide-react';
 import logoImg from './assets/Municipality of San Pascual.jpg';
@@ -40,12 +40,7 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
                             <BarChart3 size={18} className="sb-icon" />
                             <span className="sb-label">Main Dashboard</span>
                         </button>
-                        {isStaff && (
-                            <button className={`sb-sub-item ${activePage === 'user-management' ? 'active' : ''}`} onClick={() => handleNav('user-management')}>
-                                <Users size={18} className="sb-icon" />
-                                <span className="sb-label">User Management</span>
-                            </button>
-                        )}
+
                     </div>
                 )}
 

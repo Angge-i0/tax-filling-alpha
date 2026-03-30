@@ -4,7 +4,6 @@ import Sidebar from './Sidebar'
 import LoginModal from './LoginModal'
 import MainDashboard from './MainDashboard'
 import UserDashboard from './UserDashboard'
-import AdminDashboard from './AdminDashboard'
 import FAQs from './FAQs'
 import AboutCredits from './AboutCredits'
 import MapComponent from './MapComponent'
@@ -229,7 +228,6 @@ function App() {
   const avatarLetter = displayUser ? displayUser[0].toUpperCase() : 'U'
   const pageTitle = {
     'main-dashboard': 'Main Dashboard',
-    'user-management': 'User Management',
     'map-cad': 'CAD Map Overview',
     'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
@@ -240,8 +238,6 @@ function App() {
     switch (activePage) {
       case 'main-dashboard':
         return isStaff ? <MainDashboard isStaff={true} /> : <UserDashboard />
-      case 'user-management':
-        return isStaff ? <AdminDashboard username={user} onLogout={handleLogout} /> : <UserDashboard />
       case 'map-pim':
         return <PimView isStaff={isStaff} geoData={geoData} onHeaderTitleChange={setPimHeaderTitle} />
       case 'map-cad':
