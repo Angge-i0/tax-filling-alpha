@@ -1611,9 +1611,8 @@ body {
 
 .map-zoom-controls {
   position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-155%);
+  bottom: 4.75rem;
+  right: 1.5rem;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -1623,22 +1622,21 @@ body {
 
 .map-center-control {
   position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(55%);
+  bottom: 1.5rem;
+  right: 1.5rem;
   z-index: 1000;
   pointer-events: auto;
 }
 
 @media (max-width: 64rem) {
   .map-zoom-controls {
-    transform: translateX(-145%);
-    bottom: 0.75rem;
+    bottom: 4.25rem;
+    right: 1rem;
   }
 
   .map-center-control {
-    transform: translateX(45%);
-    bottom: 0.75rem;
+    bottom: 1rem;
+    right: 1rem;
   }
 }
 

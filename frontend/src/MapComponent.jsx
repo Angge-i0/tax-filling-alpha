@@ -102,7 +102,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         geoJsonRef.current.eachLayer((layer) => {
           const isSelected = selectedFeature && layer.feature === selectedFeature;
           const props = layer.feature?.properties || {};
-          const defaultColor = props.section_color || props.color || '#3388ff';
+          const defaultColor = isCad ? '#3388ff' : (props.section_color || props.color || '#3388ff');
           const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
           const selectedFill = isCad ? defaultColor : '#60a5fa';
           const selectedOpacity = isCad ? 0.72 : 0.88;
@@ -128,7 +128,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
               fillColor: fillColor
             });
           } else {
-            const featureColor = props.section_color || props.color || '#3388ff';
+            const featureColor = isCad ? '#3388ff' : (props.section_color || props.color || '#3388ff');
             layer.setStyle({
               fillOpacity: selectedFeature ? 0.22 : 0.4,
               weight: selectedFeature ? 1.25 : 2,
@@ -217,7 +217,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         const fillColor = match ? match.color : '#3388ff';
         layer.setStyle({ fillOpacity: 0.65, weight: 2.5, color: '#ffffff', fillColor });
       } else {
-        const featureColor = props.section_color || props.color || '#3388ff';
+        const featureColor = isCad ? '#3388ff' : (props.section_color || props.color || '#3388ff');
         layer.setStyle({ fillOpacity: 0.4, weight: 1.5, color: '#ffffff', fillColor: featureColor });
       }
     } catch (e) {
@@ -235,7 +235,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       const isSelected = selectedFeatureRef.current === feature;
       try {
         if (isSelected) {
-          const defaultColor = props.section_color || props.color || '#3388ff';
+          const defaultColor = isCad ? '#3388ff' : (props.section_color || props.color || '#3388ff');
           const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
           const selectedFill = isCad ? defaultColor : '#60a5fa';
           const selectedOpacity = isCad ? 0.72 : 0.88;
@@ -246,7 +246,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           const fillColor = match ? match.color : '#3388ff';
           layer.setStyle({ fillOpacity: 0.5, weight: 1.5, color: '#ffffff', fillColor });
         } else {
-          const featureColor = props.section_color || props.color || '#3388ff';
+          const featureColor = isCad ? '#3388ff' : (props.section_color || props.color || '#3388ff');
           layer.setStyle({ fillOpacity: 0.4, weight: 1.5, color: '#ffffff', fillColor: featureColor });
         }
       } catch (e) {}

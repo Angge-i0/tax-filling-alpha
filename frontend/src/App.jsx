@@ -382,22 +382,13 @@ function App() {
 }
 
 // ── CAD Map Component ──
-const CAD_LEGEND = [
-  { name: 'Alalum', color: '#7ec8e3' }, { name: 'Antipolo', color: '#ff6b6b' },
-  { name: 'Balimbing', color: '#51cf66' }, { name: 'Banaba', color: '#ffd43b' },
-  { name: 'Bayanan', color: '#845ef7' }, { name: 'Danglayan', color: '#ff922b' },
-  { name: 'Del Pilar', color: '#20c997' }, { name: 'Gelerang Kawayan', color: '#e64980' },
-  { name: 'Ilat North', color: '#339af0' }, { name: 'Ilat South', color: '#22b8cf' },
-  { name: 'Kaingin', color: '#94d82d' }, { name: 'Laurel', color: '#f06595' },
-  { name: 'Malaking Pook', color: '#9775fa' }, { name: 'Mataas na Lupa', color: '#cc5de8' },
-  { name: 'Natunuan North', color: '#5c7cfa' }, { name: 'Natunuan South', color: '#f783ac' },
-  { name: 'Padre Castillo', color: '#38d9a9' }, { name: 'Palsahingin', color: '#fd7e14' },
-  { name: 'Pila', color: '#adb5bd' }, { name: 'Poblacion', color: '#e03131' },
-  { name: 'Pook ni Banal', color: '#2f9e44' }, { name: 'Pook ni Kapitan', color: '#f08c00' },
-  { name: 'Resplandor', color: '#1971c2' }, { name: 'Sambat', color: '#e8590c' },
-  { name: 'San Antonio', color: '#0ca678' }, { name: 'San Mariano', color: '#66a80f' },
-  { name: 'San Mateo', color: '#3bc9db' }, { name: 'Sta. Elena', color: '#b197fc' },
-  { name: 'Sto. Nino', color: '#fcc419' },
+const CAD_BARANGAYS = [
+  'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
+  'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
+  'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
+  'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
+  'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat',
+  'San Antonio', 'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
 function CadMap({ geoData, error, isStaff }) {
@@ -411,7 +402,7 @@ function CadMap({ geoData, error, isStaff }) {
     setSelectedFeature(feature);
   };
 
-  const handleLegendClick = (name) => {
+  const handleListClick = (name) => {
     if (!geoData) return;
     const feature = geoData.features.find(f => f.properties?.ADM4_EN === name);
     if (feature) handleSelect(feature);
@@ -428,30 +419,28 @@ function CadMap({ geoData, error, isStaff }) {
               onFeatureSelect={handleSelect}
               selectedFeature={selectedFeature}
               isCad={true}
-              legend={CAD_LEGEND}
-              isStatic={true}
+              isStatic={false}
             />
           </div>
         </div>
         <div className="cad-legend">
-          <h3>LEGEND</h3>
+          <h3>BARANGAYS</h3>
           <div className="cad-legend-grid">
-            {CAD_LEGEND.map(b => (
+            {CAD_BARANGAYS.map(b => (
               <div
-                key={b.name}
-                onClick={() => handleLegendClick(b.name)}
-                className={`cad-legend-item ${selectedBarangay === b.name ? 'active' : ''}`}
+                key={b}
+                onClick={() => handleListClick(b)}
+                className={`cad-legend-item ${selectedBarangay === b ? 'active' : ''}`}
                 style={{ 
-                  fontWeight: selectedBarangay === b.name ? '800' : 'normal',
+                  fontWeight: selectedBarangay === b ? '800' : 'normal',
                   cursor: 'pointer',
-                  padding: '2px 3px',
+                  padding: '4px 6px',
                   borderRadius: '3px',
-                  background: selectedBarangay === b.name ? '#e0e7ff' : 'transparent',
-                  color: selectedBarangay === b.name ? '#1e3a5f' : undefined,
+                  background: selectedBarangay === b ? '#e0e7ff' : 'transparent',
+                  color: selectedBarangay === b ? '#1e3a5f' : undefined,
                 }}
               >
-                <div className="cad-color-swatch" style={{ backgroundColor: b.color }} />
-                <span>{b.name}</span>
+                <span>{b}</span>
               </div>
             ))}
           </div>
