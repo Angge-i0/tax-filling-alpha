@@ -117,7 +117,7 @@ This repo includes:
 - `scripts/postgis_schema.sql` (creates normalized map tables)
 - `scripts/import_gpkg_to_postgis.ps1` (imports all `maps/static` GeoPackages)
 
-Run from project root:
+Run from project rooat:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
