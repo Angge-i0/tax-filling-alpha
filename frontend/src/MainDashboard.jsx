@@ -387,7 +387,7 @@ export default function MainDashboard({ isStaff, searchBrgy = '', searchPin = ''
   const cats = Array.isArray(report?.rpt_by_class) ? report.rpt_by_class : [];
   const brgyRows = report?.assessment_table?.rows || [];
   const filteredRows = brgyRows.filter(row =>
-    row.barangay.toLowerCase().includes(searchBrgy.toLowerCase())
+    (row.barangay || '').trim().toLowerCase().includes(searchBrgy.trim().toLowerCase())
   );
   const bgColors = cats.map((c, i) => color(c.label, i));
 

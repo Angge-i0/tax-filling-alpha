@@ -14,7 +14,7 @@ const ALL_BARANGAYS = [
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
-export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
+export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchBrgy = '', searchPin = '' }) {
     // Navigation State
     const [barangayList, setBarangayList] = useState([]);
     const [selectedBarangay, setSelectedBarangay] = useState(null);
@@ -69,6 +69,14 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
             })
             .catch(err => setError(String(err)));
     }, []);
+
+    const filteredBarangayList = useMemo(() => {
+        const query = (searchBrgy || '').trim().toLowerCase();
+        if (!query) return barangayList;
+        return barangayList.filter(b =>
+            (b.name || '').trim().toLowerCase().includes(query)
+        );
+    }, [barangayList, searchBrgy]);
 
     useEffect(() => {
         if (!onHeaderTitleChange) return;
@@ -157,6 +165,67 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                 });
         }
     }, [selectedSection, selectedBarangay]);
+
+    // Unified Search Logic: Barangay switch and Parcel searching
+    useEffect(() => {
+        const brgyQuery = (searchBrgy || '').trim();
+        const pinQuery = (searchPin || '').trim();
+
+        // If Barangay is cleared, reset navigation state
+        if (!brgyQuery) {
+            setSelectedBarangay(null);
+            setSelectedSection(null);
+            setSelectedLotPin(null);
+            return;
+        }
+
+        if (brgyQuery.length < 3) return;
+
+        // Try to find a valid Barangay in the list
+        const bMatch = barangayList.find(b => 
+            (b.name || '').trim().toLowerCase() === brgyQuery.toLowerCase()
+        );
+
+        if (bMatch) {
+            // Priority: If PIN is present, perform search
+            if (pinQuery.length >= 3) {
+                const handler = setTimeout(() => {
+                    apiGet(`/api/pim/search/lot/?barangay=${encodeURIComponent(bMatch.name)}&pin=${encodeURIComponent(pinQuery)}`)
+                        .then(res => {
+                            if (!res.ok) throw new Error("Not found");
+                            return res.json();
+                        })
+                        .then(data => {
+                            if (data.barangay && data.section_number !== undefined) {
+                                setSelectedBarangay(data.barangay);
+                                setSelectedSection(data.section_number);
+                                setSelectedLotPin(data.pin || pinQuery);
+                            }
+                        })
+                        .catch(() => {
+                            // If PIN search fails, but we've changed barangay, switch to that barangay overview
+                            if (bMatch.name !== selectedBarangay) {
+                                setSelectedBarangay(bMatch.name);
+                                setSelectedSection(null);
+                                setSelectedLotPin(null);
+                            }
+                        });
+                }, 500);
+                return () => clearTimeout(handler);
+            } else {
+                // Case: No PIN input (empty or too short)
+                // We show the barangay sections overview if:
+                // 1. We just switched to this barangay
+                // 2. OR we were looking at a specific lot and just cleared/shortened the PIN search
+                const isShortPin = pinQuery.length > 0 && pinQuery.length < 3;
+                if (bMatch.name !== selectedBarangay || selectedLotPin || isShortPin) {
+                    setSelectedBarangay(bMatch.name);
+                    setSelectedSection(null);
+                    setSelectedLotPin(null);
+                }
+            }
+        }
+    }, [searchBrgy, searchPin, barangayList]);
 
     const normalizePin = (value) => (value ? String(value).trim() : '');
     const getFeaturePin = (feature) => normalizePin(feature?.properties?.pin || feature?.properties?.PIN);
@@ -289,7 +358,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                     return;
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
         mapInstance.setView([13.79, 121.0], 13);
     };
 
@@ -488,7 +557,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
             }}>
                 <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '0.125rem solid #e2e8f0', paddingBottom: '0.625rem' }}>Barangays</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
-                    {barangayList.map(b => (
+                    {filteredBarangayList.map(b => (
                         <button
                             key={b.name}
                             onClick={() => setSelectedBarangay(b.name)}
@@ -648,7 +717,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                                                         apiPost('/api/pim/lots/adjustment/', { pin, adjustment_rate: 0.75 })
                                                             .then(() => {
                                                                 setAdjustmentStatus('saved');
-                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch {}
+                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch { }
                                                             })
                                                             .catch(() => setAdjustmentStatus('error'));
                                                     }
@@ -667,7 +736,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
                                                         apiPost('/api/pim/lots/adjustment/', { pin, adjustment_rate: 0.5 })
                                                             .then(() => {
                                                                 setAdjustmentStatus('saved');
-                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch {}
+                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch { }
                                                             })
                                                             .catch(() => setAdjustmentStatus('error'));
                                                     }

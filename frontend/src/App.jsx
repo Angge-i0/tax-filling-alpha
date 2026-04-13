@@ -13,6 +13,15 @@ import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToke
 import './App.css'
 import ErrorBoundary from './ErrorBoundary'
 
+const CAD_BARANGAYS = [
+  'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
+  'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
+  'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North', 'Natunuan South',
+  'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion', 'Pook ni Banal',
+  'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio', 'San Mariano',
+  'San Mateo', 'Sta. Elena', 'Sto. Nino'
+];
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(null)
   const [user, setUser] = useState(null)
@@ -163,6 +172,17 @@ function App() {
       })
   }, [isAuthenticated, activePage, cadGeoData])
 
+  // Auto-switch to Map View when a valid Barangay is typed in the search bar
+  useEffect(() => {
+    const query = (searchBrgy || '').trim().toLowerCase();
+    if (query.length < 3) return;
+    
+    const isMatch = CAD_BARANGAYS.some(b => b.toLowerCase() === query);
+    if (isMatch && activePage === 'dashboard') {
+      setActivePage('map-pim');
+    }
+  }, [searchBrgy]);
+
 
   const handleLoginSuccess = (username, staffFlag, fullNameProp) => {
     setIsAuthenticated(true)
@@ -227,13 +247,14 @@ function App() {
       case 'dashboard':
         return <MainDashboard isStaff={isStaff} searchBrgy={searchBrgy} searchPin={searchPin} />
       case 'map-pim':
-        return <PimView isStaff={isStaff} geoData={geoData} onHeaderTitleChange={setPimHeaderTitle} />
+        return <PimView isStaff={isStaff} geoData={geoData} onHeaderTitleChange={setPimHeaderTitle} searchBrgy={searchBrgy} searchPin={searchPin} />
       case 'map-cad':
         return (
           <CadMap
             geoData={cadGeoData}
             error={error}
             isStaff={isStaff}
+            searchBrgy={searchBrgy}
           />
         )
       case 'faqs':
@@ -392,18 +413,20 @@ function App() {
 }
 
 // ── CAD Map Side Components ──
-const CAD_BARANGAYS = [
-  'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
-  'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
-  'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North', 'Natunuan South',
-  'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion', 'Pook ni Banal',
-  'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio', 'San Mariano',
-  'San Mateo', 'Sta. Elena', 'Sto. Nino'
-];
 
-function CadMap({ geoData, error, isStaff }) {
+function CadMap({ geoData, error, isStaff, searchBrgy = '' }) {
   const [selectedBarangay, setSelectedBarangay] = useState(null)
   const [selectedFeature, setSelectedFeature] = useState(null)
+
+  // Auto-select when searchBrgy exactly matches a barangay
+  useEffect(() => {
+    const query = (searchBrgy || '').trim().toLowerCase();
+    if (!query) return;
+    const match = CAD_BARANGAYS.find(b => b.toLowerCase() === query);
+    if (match) {
+      handleListClick(match);
+    }
+  }, [searchBrgy]);
 
   const handleSelect = (feature) => {
     const rawName = (feature?.properties?.ADM4_EN || '').toLowerCase().trim();
@@ -448,7 +471,9 @@ function CadMap({ geoData, error, isStaff }) {
         <div className="cad-legend">
           <h3>BARANGAYS</h3>
           <div className="cad-legend-grid">
-            {CAD_BARANGAYS.map(b => (
+            {CAD_BARANGAYS
+              .filter(b => b.trim().toLowerCase().includes(searchBrgy.trim().toLowerCase()))
+              .map(b => (
               <div
                 key={b}
                 onClick={() => handleListClick(b)}

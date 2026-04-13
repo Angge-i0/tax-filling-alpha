@@ -19,7 +19,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     const lastPart = raw.split('-').pop() || raw;
     const cleaned = lastPart.trim();
     if (!cleaned) return 'N/A';
-    return cleaned.length > 3 ? cleaned.slice(-3) : cleaned;
+    return cleaned.length > 4 ? cleaned.slice(-4) : cleaned; 
   };
 
   const getPin = (feature) => {
@@ -95,6 +95,34 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     };
   }, [map])
 
+  const [zoomLevel, setZoomLevel] = useState(map.getZoom());
+
+  useEffect(() => {
+    const handleZoom = () => {
+      setZoomLevel(map.getZoom());
+    };
+    map.on('zoomend', handleZoom);
+    
+    // Initial zoom class
+    const container = map.getContainer();
+    container.classList.add(`zoom-${Math.floor(map.getZoom())}`);
+
+    return () => {
+      map.off('zoomend', handleZoom);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    const container = map.getContainer();
+    // Remove existing zoom classes
+    const classes = Array.from(container.classList);
+    classes.forEach(c => {
+      if (c.startsWith('zoom-')) container.classList.remove(c);
+    });
+    // Add current zoom class
+    container.classList.add(`zoom-${Math.floor(zoomLevel)}`);
+  }, [zoomLevel, map]);
+
   useEffect(() => {
     if (onMapReady) onMapReady(map);
     return () => {
@@ -140,17 +168,18 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           const isSelected = selectedFeaturePin ? layerPin === selectedFeaturePin : (selectedFeature && layer.feature === selectedFeature);
           const props = layer.feature?.properties || {};
           const defaultColor = props.section_color || props.color || '#3388ff';
-          const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
-          const selectedFill = isCad ? defaultColor : '#60a5fa';
-          const selectedOpacity = isCad ? 0.72 : 0.88;
+          const selectedBorder = '#fbbf24'; // Bright Amber
+          const selectedFill = isCad ? defaultColor : '#3b82f6';
+          const selectedOpacity = 0.85;
 
           if (isSelected) {
             layer.setStyle({
               fillOpacity: selectedOpacity,
-              weight: 3.5,
+              weight: 5,
               color: selectedBorder,
               fillColor: selectedFill,
-              className: 'selected-feature-pulse'
+              className: 'selected-feature-pulse',
+              dashArray: '10, 10'
             });
             layer.bringToFront();
           } else if (isCad) {
@@ -195,7 +224,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     // Safe Tooltip Binding
     try {
       if (props.hasOwnProperty('section_number') && !props.hasOwnProperty('pin') && !props.hasOwnProperty('PIN')) {
-        layer.bindTooltip(`<b>Section ${props.section_number}</b>`, {
+        layer.bindTooltip(`<b>${props.section_number}</b>`, {
           permanent: true,
           direction: 'center',
           className: 'section-tooltip'
@@ -241,7 +270,11 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           layer.bindPopup(popupWrap, { closeOnClick: true, autoClose: true, autoPan: true });
         }
       } else if (props.ADM4_EN) {
-        layer.bindTooltip(`<b>${props.ADM4_EN}</b>`, { sticky: true });
+        layer.bindTooltip(`<b>${props.ADM4_EN}</b>`, { 
+          permanent: true, 
+          direction: 'center',
+          className: 'section-tooltip' // Reuse section styling for barangays
+        });
       }
     } catch (e) {
       console.warn("Tooltip binding failed:", e);
@@ -325,7 +358,11 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
             try {
               layer.setStyle({ fillOpacity: 0.1, weight: 1.0, color: '#475569', fillColor: '#94a3b8' });
               if (feature.properties?.ADM4_EN) {
-                layer.bindTooltip(`<b>${feature.properties.ADM4_EN}</b>`, { sticky: true });
+                layer.bindTooltip(`<b>${feature.properties.ADM4_EN}</b>`, { 
+                  permanent: true, 
+                  direction: 'center',
+                  className: 'section-tooltip'
+                });
               }
               if (isBackgroundInteractive) {
                 layer.on('click', (e) => {

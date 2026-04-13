@@ -569,3 +569,38 @@ def pim_lot_adjustment(request):
         pass
 
     return JsonResponse({'pin': obj.pin, 'adjustment_rate': float(obj.adjustment_rate)})
+
+
+@api_login_required
+@require_http_methods(["GET"])
+def pim_lot_search(request):
+    """
+    Search for a specific lot by barangay and PIN.
+    Returns the section number to help navigation.
+    """
+    barangay_name = (request.GET.get('barangay') or '').strip()
+    pin = (request.GET.get('pin') or '').strip()
+
+    if not barangay_name or not pin:
+        return JsonResponse({'error': 'Barangay and PIN are required.'}, status=400)
+
+    # Filter queryset by barangay variants
+    qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
+
+    # Exact match search in JSON properties
+    lot = qs.filter(Q(properties__pin=pin) | Q(properties__PIN=pin)).first()
+
+    if not lot:
+        # Fallback to case-insensitive or partial match if exact fails
+        # Depending on DB, __icontains on JSON values might vary, 
+        # but for common cases this works:
+        lot = qs.filter(Q(properties__pin__icontains=pin) | Q(properties__PIN__icontains=pin)).first()
+
+    if not lot:
+        return JsonResponse({'error': 'Lot not found in this barangay.'}, status=404)
+
+    return JsonResponse({
+        'barangay': canonical_name,
+        'section_number': lot.section_number,
+        'pin': lot.properties.get('pin') or lot.properties.get('PIN'),
+    })
