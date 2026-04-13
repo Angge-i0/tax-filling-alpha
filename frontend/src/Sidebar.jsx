@@ -54,6 +54,12 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
 
             </nav>
 
+            {/* Branding / Footer */}
+            <div className="sb-branding">
+                <div className="sb-branding-lgu">LGU: SAN PASCUAL</div>
+                <div className="sb-branding-gadc">Developed by the Office of GADC - GIS Applications Development Center</div>
+            </div>
+
             {/* Footer */}
             <div className="sb-footer">
                 <button className={`sb-item ${activePage === 'faqs' ? 'active' : ''}`} onClick={() => handleNav('faqs')}>

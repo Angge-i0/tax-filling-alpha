@@ -401,15 +401,9 @@ function App() {
             {renderPage()}
           </ErrorBoundary>
         </div>
-
-        {/* Structural Footer */}
-        <div className="md-footer-branding">
-          <div className="footer-lgu">LGU: SAN PASCUAL</div>
-          <div className="footer-gadc">Developed by the Office of GADC - GIS Applications Development Center</div>
-        </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ── CAD Map Side Components ──

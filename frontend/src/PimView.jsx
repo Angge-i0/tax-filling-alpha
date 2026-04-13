@@ -564,23 +564,23 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                 transition: 'transform 0.25s ease'
             }}>
                 <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '0.125rem solid #e2e8f0', paddingBottom: '0.625rem' }}>Barangays</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                     {filteredBarangayList.map(b => (
                         <button
                             key={b.name}
                             onClick={() => setSelectedBarangay(b.name)}
                             style={{
-                                textAlign: 'left', padding: '0.625rem', borderRadius: '0.375rem', border: '0.0625rem solid #e2e8f0',
+                                textAlign: 'left', padding: '0.35rem 0.625rem', borderRadius: '0.375rem', border: '0.0625rem solid #e2e8f0',
                                 background: selectedBarangay === b.name ? '#ebf4ff' : '#fff',
                                 borderColor: selectedBarangay === b.name ? '#3b82f6' : '#e2e8f0',
                                 cursor: 'pointer', opacity: b.has_data ? 1 : 0.5
                             }}
                         >
-                            <div style={{ fontWeight: 'bold', color: '#1e3a5f' }}>{b.name}</div>
+                            <div style={{ fontWeight: 'bold', color: '#1e3a5f', fontSize: '0.85rem' }}>{b.name}</div>
                             {b.has_data ? (
-                                <div style={{ fontSize: '0.8em', color: '#64748b' }}>{b.section_count} sections</div>
+                                <div style={{ fontSize: '0.7em', color: '#64748b' }}>{b.section_count} sections</div>
                             ) : (
-                                <div style={{ fontSize: '0.8em', color: '#ef4444', fontStyle: 'italic' }}>⚠ Does not contain data</div>
+                                <div style={{ fontSize: '0.7em', color: '#ef4444', fontStyle: 'italic' }}>⚠ Does not contain data</div>
                             )}
                         </button>
                     ))}
