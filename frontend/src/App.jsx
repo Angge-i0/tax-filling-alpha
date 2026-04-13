@@ -176,7 +176,7 @@ function App() {
   useEffect(() => {
     const query = (searchBrgy || '').trim().toLowerCase();
     if (query.length < 3) return;
-    
+
     const isMatch = CAD_BARANGAYS.some(b => b.toLowerCase() === query);
     if (isMatch && activePage === 'dashboard') {
       setActivePage('map-pim');
@@ -236,7 +236,7 @@ function App() {
   const avatarLetter = displayUser ? displayUser[0].toUpperCase() : 'U'
   const pageTitle = {
     'dashboard': 'Dashboard',
-    'map-cad': 'CADASTRAL Map Overview',
+    'map-cad': 'Cadastral Map',
     'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
     'about': 'About & Credits',
@@ -281,26 +281,26 @@ function App() {
             <div className="header-page-title">{pageTitle}</div>
           </div>
           <div className="header-search-nav">
-             <div className="header-search-field">
-                <Search size={14} className="h-search-icon" />
-                <input 
-                  type="text" 
-                  placeholder="Brgy..." 
-                  value={searchBrgy} 
-                  onChange={e => setSearchBrgy(e.target.value)}
-                  className="h-search-input"
-                />
-             </div>
-             <div className="header-search-divider" />
-             <div className="header-search-field">
-                <input 
-                  type="text" 
-                  placeholder="PIN..." 
-                  value={searchPin} 
-                  onChange={e => setSearchPin(e.target.value)}
-                  className="h-search-input"
-                />
-             </div>
+            <div className="header-search-field">
+              <Search size={14} className="h-search-icon" />
+              <input
+                type="text"
+                placeholder="Brgy..."
+                value={searchBrgy}
+                onChange={e => setSearchBrgy(e.target.value)}
+                className="h-search-input"
+              />
+            </div>
+            <div className="header-search-divider" />
+            <div className="header-search-field">
+              <input
+                type="text"
+                placeholder="PIN..."
+                value={searchPin}
+                onChange={e => setSearchPin(e.target.value)}
+                className="h-search-input"
+              />
+            </div>
           </div>
           <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             {/* Notification Bell */}
@@ -474,22 +474,22 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '' }) {
             {CAD_BARANGAYS
               .filter(b => b.trim().toLowerCase().includes(searchBrgy.trim().toLowerCase()))
               .map(b => (
-              <div
-                key={b}
-                onClick={() => handleListClick(b)}
-                className={`cad-legend-item ${selectedBarangay === b ? 'active' : ''}`}
-                style={{
-                  fontWeight: selectedBarangay === b ? '800' : 'normal',
-                  cursor: 'pointer',
-                  padding: '4px 6px',
-                  borderRadius: '3px',
-                  background: selectedBarangay === b ? '#e0e7ff' : 'transparent',
-                  color: selectedBarangay === b ? '#1e3a5f' : undefined,
-                }}
-              >
-                <span>{b}</span>
-              </div>
-            ))}
+                <div
+                  key={b}
+                  onClick={() => handleListClick(b)}
+                  className={`cad-legend-item ${selectedBarangay === b ? 'active' : ''}`}
+                  style={{
+                    fontWeight: selectedBarangay === b ? '800' : 'normal',
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    borderRadius: '3px',
+                    background: selectedBarangay === b ? '#e0e7ff' : 'transparent',
+                    color: selectedBarangay === b ? '#1e3a5f' : undefined,
+                  }}
+                >
+                  <span>{b}</span>
+                </div>
+              ))}
           </div>
         </div>
       </div>

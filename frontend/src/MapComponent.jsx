@@ -357,13 +357,6 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           onEachFeature={(feature, layer) => {
             try {
               layer.setStyle({ fillOpacity: 0.1, weight: 1.0, color: '#475569', fillColor: '#94a3b8' });
-              if (feature.properties?.ADM4_EN) {
-                layer.bindTooltip(`<b>${feature.properties.ADM4_EN}</b>`, { 
-                  permanent: true, 
-                  direction: 'center',
-                  className: 'section-tooltip'
-                });
-              }
               if (isBackgroundInteractive) {
                 layer.on('click', (e) => {
                   L.DomEvent.stopPropagation(e);
