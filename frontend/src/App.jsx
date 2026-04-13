@@ -28,7 +28,7 @@ function App() {
   const [fullName, setFullName] = useState(null)
   const [isStaff, setIsStaff] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
-  const [pimHeaderTitle, setPimHeaderTitle] = useState('San Pascual Overview')
+  const [pimHeaderTitle, setPimHeaderTitle] = useState('Barangay Boundary Index Map')
   // Global Search
   const [searchBrgy, setSearchBrgy] = useState('');
   const [searchPin, setSearchPin] = useState('');

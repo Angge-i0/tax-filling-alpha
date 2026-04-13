@@ -80,8 +80,16 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
 
     useEffect(() => {
         if (!onHeaderTitleChange) return;
-        onHeaderTitleChange(selectedBarangay || 'San Pascual Overview');
-    }, [selectedBarangay, onHeaderTitleChange]);
+        let title = 'Barangay Boundary Index Map';
+        if (selectedLotPin) {
+            title = 'Parcel Identification Map';
+        } else if (selectedSection !== null) {
+            title = 'Property Identification Map';
+        } else if (selectedBarangay) {
+            title = 'Section Index Map';
+        }
+        onHeaderTitleChange(title);
+    }, [selectedBarangay, selectedSection, selectedLotPin, onHeaderTitleChange]);
 
     // When a Barangay is selected
     useEffect(() => {
@@ -182,7 +190,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         if (brgyQuery.length < 3) return;
 
         // Try to find a valid Barangay in the list
-        const bMatch = barangayList.find(b => 
+        const bMatch = barangayList.find(b =>
             (b.name || '').trim().toLowerCase() === brgyQuery.toLowerCase()
         );
 

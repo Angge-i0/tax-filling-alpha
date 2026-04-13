@@ -169,7 +169,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           const props = layer.feature?.properties || {};
           const defaultColor = props.section_color || props.color || '#3388ff';
           const selectedBorder = '#fbbf24'; // Bright Amber
-          const selectedFill = isCad ? defaultColor : '#3b82f6';
+          const selectedFill = isCad ? defaultColor : '#ffff00'; // Bright Yellow
           const selectedOpacity = 0.85;
 
           if (isSelected) {
@@ -315,7 +315,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         if (isSelected) {
           const defaultColor = props.section_color || props.color || '#3388ff';
           const selectedBorder = isCad ? '#22d3ee' : '#f59e0b';
-          const selectedFill = isCad ? defaultColor : '#60a5fa';
+          const selectedFill = isCad ? defaultColor : '#ffff00';
           const selectedOpacity = isCad ? 0.72 : 0.88;
           layer.setStyle({ fillOpacity: selectedOpacity, weight: 3.5, color: selectedBorder, fillColor: selectedFill });
         } else if (isCad) {
