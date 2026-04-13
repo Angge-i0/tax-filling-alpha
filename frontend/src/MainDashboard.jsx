@@ -331,8 +331,10 @@ const STYLES = `
   }
   .dash-total-row td {
     background: #b4ddf7ff !important;
-    font-weight: 700 !important;
-    border-top: 2px solid #e2e8f0;
+    font-weight: 800 !important;
+    font-size: 0.95rem !important;
+    padding: 0.85rem 0.85rem !important;
+    border-top: 2px solid #1e3a5f;
   }
   .dash-note {
     margin-top: 0.8rem;
