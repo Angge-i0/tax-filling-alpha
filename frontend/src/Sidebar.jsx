@@ -6,7 +6,6 @@ import {
 import logoImg from './assets/Municipality of San Pascual.jpg';
 
 export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
-    const [dashOpen, setDashOpen] = useState(true);
     const [mapOpen, setMapOpen] = useState(false);
 
     const handleNav = (page) => {
@@ -28,26 +27,11 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
 
             {/* Menu */}
             <nav className="sb-nav">
-                {/* ── Dashboard group ── */}
-                <button className={`sb-item sb-group-toggle ${dashOpen ? 'open' : ''}`} onClick={() => setDashOpen(!dashOpen)}>
+                {/* ── Dashboard ── */}
+                <button className={`sb-item ${activePage === 'dashboard' ? 'active' : ''}`} onClick={() => handleNav('dashboard')}>
                     <LayoutDashboard size={20} className="sb-icon" />
                     <span className="sb-label">Dashboard</span>
-                    <span className="sb-arrow sb-label">{dashOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
                 </button>
-                {dashOpen && (
-                    <div className="sb-submenu">
-                        <button className={`sb-sub-item ${activePage === 'main-dashboard' ? 'active' : ''}`} onClick={() => handleNav('main-dashboard')}>
-                            <BarChart3 size={18} className="sb-icon" />
-                            <span className="sb-label">Main Dashboard</span>
-                        </button>
-                        {isStaff && (
-                            <button className={`sb-sub-item ${activePage === 'user-management' ? 'active' : ''}`} onClick={() => handleNav('user-management')}>
-                                <Users size={18} className="sb-icon" />
-                                <span className="sb-label">User Management</span>
-                            </button>
-                        )}
-                    </div>
-                )}
 
                 {/* ── Map Overview group ── */}
                 <button className={`sb-item sb-group-toggle ${mapOpen ? 'open' : ''}`} onClick={() => setMapOpen(!mapOpen)}>

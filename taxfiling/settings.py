@@ -8,11 +8,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # GeoDjango (PostGIS backend) requires native GDAL/GEOS DLLs on Windows.
 # If you installed OSGeo4W/QGIS somewhere else (a common "wrong install path"
 # issue), update these two paths to point at the actual DLLs on your machine.
-GEOS_LIBRARY_PATH = r"D:\osgeo4w\bin\geos_c.dll"
-GDAL_LIBRARY_PATH = r"D:\osgeo4w\bin\gdal312.dll"
-OSGEO4W_BIN = r"D:\osgeo4w\bin"
-OSGEO4W_PROJ = r"D:\osgeo4w\share\proj"
-OSGEO4W_GDAL = r"D:\osgeo4w\share\gdal"
+GEOS_LIBRARY_PATH = r"A:\QGIS\bin\geos_c.dll"
+GDAL_LIBRARY_PATH = r"A:\QGIS\bin\gdal312.dll"
+OSGEO4W_BIN = r"A:\QGIS\bin"
+OSGEO4W_PROJ = r"A:\QGIS\share\proj"
+OSGEO4W_GDAL = r"A:\QGIS\apps\gdal\share\gdal"
 
 # Force GeoDjango/GDAL to use OSGeo4W data files (avoid old PostGIS PROJ db).
 os.environ["PROJ_LIB"] = OSGEO4W_PROJ

@@ -3,13 +3,12 @@ import { Bell, X, Trash2 } from 'lucide-react'
 import Sidebar from './Sidebar'
 import LoginModal from './LoginModal'
 import MainDashboard from './MainDashboard'
-import UserDashboard from './UserDashboard'
 import AdminDashboard from './AdminDashboard'
 import FAQs from './FAQs'
 import AboutCredits from './AboutCredits'
 import MapComponent from './MapComponent'
-import Header from './Header'
 import PimView from './PimView';
+import { Search } from 'lucide-react';
 import { apiGet, apiPost, apiDelete, clearTokens, getAccessToken, getRefreshToken } from './api'
 import './App.css'
 import ErrorBoundary from './ErrorBoundary'
@@ -19,11 +18,13 @@ function App() {
   const [user, setUser] = useState(null)
   const [fullName, setFullName] = useState(null)
   const [isStaff, setIsStaff] = useState(false)
-  const [activePage, setActivePage] = useState('main-dashboard')
+  const [activePage, setActivePage] = useState('dashboard')
   const [pimHeaderTitle, setPimHeaderTitle] = useState('San Pascual Overview')
+  // Global Search
+  const [searchBrgy, setSearchBrgy] = useState('');
+  const [searchPin, setSearchPin] = useState('');
 
   // Map state (for PIM view)
-  const [selectedFeature, setSelectedFeature] = useState(null)
   const [geoData, setGeoData] = useState(null)
   const [cadGeoData, setCadGeoData] = useState(null)
   const [error, setError] = useState(null)
@@ -135,13 +136,13 @@ function App() {
         console.error('Failed to load geojson:', err)
         setError(err.message || String(err))
       })
-  }, [isAuthenticated, activePage])
+  }, [isAuthenticated, activePage, geoData])
 
   // Fetch CAD GeoJSON when navigating to CAD
   useEffect(() => {
     if (!isAuthenticated || activePage !== 'map-cad') return
+    if (cadGeoData) return
 
-    setCadGeoData(null) // clear old data to force fresh load
     apiGet('/api/cad/geojson/')
       .then(res => {
         if (res.status === 401) {
@@ -154,14 +155,13 @@ function App() {
         return res.json()
       })
       .then(data => {
-        console.log('CAD data loaded:', data?.features?.length, 'features')
         setCadGeoData(data)
       })
       .catch(err => {
         console.error('Failed to load CAD geojson:', err)
         setError(err.message || String(err))
       })
-  }, [isAuthenticated, activePage])
+  }, [isAuthenticated, activePage, cadGeoData])
 
 
   const handleLoginSuccess = (username, staffFlag, fullNameProp) => {
@@ -169,7 +169,7 @@ function App() {
     setUser(username)
     setFullName(fullNameProp)
     setIsStaff(!!staffFlag)
-    setActivePage('main-dashboard')
+    setActivePage('dashboard')
   }
 
   const handleLogout = async () => {
@@ -187,22 +187,9 @@ function App() {
       setFullName(null)
       setIsStaff(false)
       setGeoData(null)
-      setSelectedFeature(null)
       setError(null)
-      setActivePage('main-dashboard')
+      setActivePage('dashboard')
     }
-  }
-
-  const barangays = useMemo(() => {
-    if (!geoData) return []
-    const names = geoData.features.map(f => f.properties.ADM4_EN).filter(Boolean)
-    return [...new Set(names)].sort()
-  }, [geoData])
-
-  const handleBarangaySelect = (name) => {
-    if (!geoData || !name) return
-    const feature = geoData.features.find(f => f.properties.ADM4_EN === name)
-    if (feature) setSelectedFeature(feature)
   }
 
   // ── Loading ──
@@ -228,9 +215,8 @@ function App() {
   const displayUser = fullName || user || 'User'
   const avatarLetter = displayUser ? displayUser[0].toUpperCase() : 'U'
   const pageTitle = {
-    'main-dashboard': 'Main Dashboard',
-    'user-management': 'User Management',
-    'map-cad': 'CAD Map Overview',
+    'dashboard': 'Dashboard',
+    'map-cad': 'CADASTRAL Map Overview',
     'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
     'about': 'About & Credits',
@@ -238,10 +224,8 @@ function App() {
 
   const renderPage = () => {
     switch (activePage) {
-      case 'main-dashboard':
-        return isStaff ? <MainDashboard isStaff={true} /> : <UserDashboard />
-      case 'user-management':
-        return isStaff ? <AdminDashboard username={user} onLogout={handleLogout} /> : <UserDashboard />
+      case 'dashboard':
+        return <MainDashboard isStaff={isStaff} searchBrgy={searchBrgy} searchPin={searchPin} />
       case 'map-pim':
         return <PimView isStaff={isStaff} geoData={geoData} onHeaderTitleChange={setPimHeaderTitle} />
       case 'map-cad':
@@ -257,7 +241,7 @@ function App() {
       case 'about':
         return <AboutCredits />
       default:
-        return isStaff ? <MainDashboard isStaff={true} /> : <UserDashboard />
+        return <MainDashboard isStaff={isStaff} />
     }
   }
 
@@ -274,6 +258,28 @@ function App() {
         <div className="app-header">
           <div className="header-left">
             <div className="header-page-title">{pageTitle}</div>
+          </div>
+          <div className="header-search-nav">
+             <div className="header-search-field">
+                <Search size={14} className="h-search-icon" />
+                <input 
+                  type="text" 
+                  placeholder="Brgy..." 
+                  value={searchBrgy} 
+                  onChange={e => setSearchBrgy(e.target.value)}
+                  className="h-search-input"
+                />
+             </div>
+             <div className="header-search-divider" />
+             <div className="header-search-field">
+                <input 
+                  type="text" 
+                  placeholder="PIN..." 
+                  value={searchPin} 
+                  onChange={e => setSearchPin(e.target.value)}
+                  className="h-search-input"
+                />
+             </div>
           </div>
           <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             {/* Notification Bell */}
@@ -385,45 +391,47 @@ function App() {
   )
 }
 
-// ── CAD Map Component ──
-const CAD_LEGEND = [
-  { name: 'Alalum', color: '#7ec8e3' }, { name: 'Antipolo', color: '#ff6b6b' },
-  { name: 'Balimbing', color: '#51cf66' }, { name: 'Banaba', color: '#ffd43b' },
-  { name: 'Bayanan', color: '#845ef7' }, { name: 'Danglayan', color: '#ff922b' },
-  { name: 'Del Pilar', color: '#20c997' }, { name: 'Gelerang Kawayan', color: '#e64980' },
-  { name: 'Ilat North', color: '#339af0' }, { name: 'Ilat South', color: '#22b8cf' },
-  { name: 'Kaingin', color: '#94d82d' }, { name: 'Laurel', color: '#f06595' },
-  { name: 'Malaking Pook', color: '#9775fa' }, { name: 'Mataas na Lupa', color: '#cc5de8' },
-  { name: 'Natunuan North', color: '#5c7cfa' }, { name: 'Natunuan South', color: '#f783ac' },
-  { name: 'Padre Castillo', color: '#38d9a9' }, { name: 'Palsahingin', color: '#fd7e14' },
-  { name: 'Pila', color: '#adb5bd' }, { name: 'Poblacion', color: '#e03131' },
-  { name: 'Pook ni Banal', color: '#2f9e44' }, { name: 'Pook ni Kapitan', color: '#f08c00' },
-  { name: 'Resplandor', color: '#1971c2' }, { name: 'Sambat', color: '#e8590c' },
-  { name: 'San Antonio', color: '#0ca678' }, { name: 'San Mariano', color: '#66a80f' },
-  { name: 'San Mateo', color: '#3bc9db' }, { name: 'Sta. Elena', color: '#b197fc' },
-  { name: 'Sto. Nino', color: '#fcc419' },
+// ── CAD Map Side Components ──
+const CAD_BARANGAYS = [
+  'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
+  'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
+  'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North', 'Natunuan South',
+  'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion', 'Pook ni Banal',
+  'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio', 'San Mariano',
+  'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
 function CadMap({ geoData, error, isStaff }) {
-  const [selectedBarangay, setSelectedBarangay] = useState(null);
-  const [selectedFeature, setSelectedFeature] = useState(null);
+  const [selectedBarangay, setSelectedBarangay] = useState(null)
+  const [selectedFeature, setSelectedFeature] = useState(null)
 
   const handleSelect = (feature) => {
-    if (!feature) return;
-    const name = feature.properties?.ADM4_EN;
-    setSelectedBarangay(name);
+    const rawName = (feature?.properties?.ADM4_EN || '').toLowerCase().trim();
+    if (!rawName) return;
+
+    // Search for a list item that matches or contains the geojson name
+    const match = CAD_BARANGAYS.find(n => {
+      const ln = n.toLowerCase().trim();
+      return ln === rawName || ln.includes(rawName) || rawName.includes(ln);
+    });
+
+    setSelectedBarangay(match || feature?.properties?.ADM4_EN);
     setSelectedFeature(feature);
   };
 
-  const handleLegendClick = (name) => {
+  const handleListClick = (name) => {
     if (!geoData) return;
-    const feature = geoData.features.find(f => f.properties?.ADM4_EN === name);
+    const ln = (name || '').toLowerCase().trim();
+    const feature = geoData.features.find(f => {
+      const fn = (f.properties?.ADM4_EN || '').toLowerCase().trim();
+      return fn === ln || fn.includes(ln) || ln.includes(fn);
+    });
     if (feature) handleSelect(feature);
   };
 
   return (
     <div className="cad-page">
-      <div className="cad-layout">
+      <div className="cad-layout" style={{ gridTemplateColumns: '1fr 30rem', height: '100%' }}>
         <div className="cad-map-area">
           <div className="map-view">
             <MapComponent
@@ -432,37 +440,36 @@ function CadMap({ geoData, error, isStaff }) {
               onFeatureSelect={handleSelect}
               selectedFeature={selectedFeature}
               isCad={true}
-              legend={CAD_LEGEND}
-              isStatic={true}
+              isStatic={false}
+              legend={CAD_BARANGAYS}
             />
           </div>
         </div>
         <div className="cad-legend">
-          <h3>LEGEND</h3>
+          <h3>BARANGAYS</h3>
           <div className="cad-legend-grid">
-            {CAD_LEGEND.map(b => (
+            {CAD_BARANGAYS.map(b => (
               <div
-                key={b.name}
-                onClick={() => handleLegendClick(b.name)}
-                className={`cad-legend-item ${selectedBarangay === b.name ? 'active' : ''}`}
-                style={{ 
-                  fontWeight: selectedBarangay === b.name ? '800' : 'normal',
+                key={b}
+                onClick={() => handleListClick(b)}
+                className={`cad-legend-item ${selectedBarangay === b ? 'active' : ''}`}
+                style={{
+                  fontWeight: selectedBarangay === b ? '800' : 'normal',
                   cursor: 'pointer',
-                  padding: '2px 3px',
+                  padding: '4px 6px',
                   borderRadius: '3px',
-                  background: selectedBarangay === b.name ? '#e0e7ff' : 'transparent',
-                  color: selectedBarangay === b.name ? '#1e3a5f' : undefined,
+                  background: selectedBarangay === b ? '#e0e7ff' : 'transparent',
+                  color: selectedBarangay === b ? '#1e3a5f' : undefined,
                 }}
               >
-                <div className="cad-color-swatch" style={{ backgroundColor: b.color }} />
-                <span>{b.name}</span>
+                <span>{b}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 export default App

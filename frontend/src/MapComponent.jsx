@@ -153,16 +153,13 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
               className: 'selected-feature-pulse'
             });
             layer.bringToFront();
-          } else if (isCad && legend) {
-            const brgyName = props.ADM4_EN;
-            const match = legend.find(l => l.name?.toLowerCase() === brgyName?.toLowerCase());
-            const fillColor = match ? match.color : '#3388ff';
+          } else if (isCad) {
             layer.setStyle({
               fillOpacity: 0.5,
               weight: 1.5,
               opacity: 0.8,
               color: '#ffffff',
-              fillColor: fillColor
+              fillColor: '#3b82f6'
             });
           } else {
             const featureColor = props.section_color || props.color || '#3388ff';
@@ -252,14 +249,21 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
 
     // Set Initial Style Safely
     try {
-      if (isCad && legend) {
-        const brgyName = props.ADM4_EN;
-        const match = legend.find(l => l.name?.toLowerCase() === brgyName?.toLowerCase());
-        const fillColor = match ? match.color : '#3388ff';
-        layer.setStyle({ fillOpacity: 0.65, weight: 2.5, color: '#ffffff', fillColor });
+      if (isCad) {
+        layer.setStyle({
+          fillOpacity: 0.4,
+          weight: 1.5,
+          color: '#ffffff',
+          fillColor: '#3b82f6'
+        });
       } else {
         const featureColor = props.section_color || props.color || '#3388ff';
-        layer.setStyle({ fillOpacity: 0.4, weight: 1.5, color: '#ffffff', fillColor: featureColor });
+        layer.setStyle({
+          fillOpacity: 0.4,
+          weight: 1.5,
+          color: '#ffffff',
+          fillColor: featureColor
+        });
       }
     } catch (e) {
        console.warn("Initial style failed:", e);
@@ -281,11 +285,8 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           const selectedFill = isCad ? defaultColor : '#60a5fa';
           const selectedOpacity = isCad ? 0.72 : 0.88;
           layer.setStyle({ fillOpacity: selectedOpacity, weight: 3.5, color: selectedBorder, fillColor: selectedFill });
-        } else if (isCad && legend) {
-          const brgyName = props.ADM4_EN;
-          const match = legend.find(l => l.name?.toLowerCase() === brgyName?.toLowerCase());
-          const fillColor = match ? match.color : '#3388ff';
-          layer.setStyle({ fillOpacity: 0.5, weight: 1.5, color: '#ffffff', fillColor });
+        } else if (isCad) {
+          layer.setStyle({ fillOpacity: 0.5, weight: 1.5, color: '#ffffff', fillColor: '#3b82f6' });
         } else {
           const featureColor = props.section_color || props.color || '#3388ff';
           layer.setStyle({ fillOpacity: 0.4, weight: 1.5, color: '#ffffff', fillColor: featureColor });
