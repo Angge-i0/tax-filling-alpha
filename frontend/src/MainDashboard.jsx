@@ -183,7 +183,7 @@ const STYLES = `
 
   /* ── Pie card ── */
   .dash-pie-card {
-    flex: 65;
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -196,12 +196,13 @@ const STYLES = `
 
   /* ── Category / Value table card ── */
   .dash-cat-card {
-    flex: 35;
+    height: auto;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
-    padding-top: 0.5rem; /* pull content up */
+    padding-top: 0.5rem;
   }
   .dash-cat-table {
     width: 100%;
@@ -214,7 +215,7 @@ const STYLES = `
     letter-spacing: 0.1em;
     color: #94a3b8;
     text-transform: uppercase;
-    padding-bottom: 0.45rem;
+    padding-bottom: 0.6rem;
     border-bottom: 1px solid #e2e8f0;
   }
   .dash-cat-table thead th:last-child { text-align: right; }
@@ -224,7 +225,7 @@ const STYLES = `
   .dash-cat-table tbody tr:last-child { border-bottom: none; }
   .dash-cat-table tbody td {
     font-family: 'Plus Jakarta Sans', sans-serif;
-    padding: 0.35rem 0;
+    padding: 0.65rem 0;
     font-size: 0.77rem;
     font-weight: 600;
     color: #0f1d35;
