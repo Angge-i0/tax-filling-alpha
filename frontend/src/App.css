@@ -283,18 +283,22 @@ body {
   padding: 0 1rem;
   height: 2.2rem;
   gap: 0.75rem;
-  margin-left: auto; /* Push to the right before header-right */
+  margin-left: auto;
+  /* Push to the right before header-right */
   margin-right: 1.5rem;
 }
+
 .header-search-field {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
+
 .h-search-icon {
   color: #94a3b8;
   flex-shrink: 0;
 }
+
 .h-search-input {
   border: none;
   background: transparent;
@@ -304,9 +308,11 @@ body {
   width: 6.5rem;
   outline: none;
 }
+
 .h-search-input::placeholder {
   color: #cbd5e1;
 }
+
 .header-search-divider {
   width: 1px;
   height: 1.2rem;
@@ -396,7 +402,7 @@ body {
   border-radius: 12px;
   padding: 1.375rem 1.5rem;
   border-top: 4px solid #3b82f6;
-  box-shadow: 0 4px 12px rgba(15,29,53,0.1);
+  box-shadow: 0 4px 12px rgba(15, 29, 53, 0.1);
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -438,7 +444,7 @@ body {
   background: #ffffff;
   border-radius: 12px;
   padding: 1.25rem;
-  box-shadow: 0 4px 12px rgba(15,29,53,0.1);
+  box-shadow: 0 4px 12px rgba(15, 29, 53, 0.1);
   height: 320px;
 }
 
@@ -1336,14 +1342,14 @@ body {
 }
 
 .pim-map-ctrl-btn-primary {
-  background: #0f1d35;
-  color: #ffffff;
-  border-color: #0f1d35;
+  background: #a9dbfaff;
+  color: #000000;
+  border-color: #a9dbfaff;
 }
 
 .pim-map-ctrl-btn-primary:hover {
-  background: #1e3a5f;
-  border-color: #1e3a5f;
+  background: #c2e8ffff;
+  border-color: #c2e8ffff;
 }
 
 .pim-map-ctrl-btn:disabled {
@@ -1355,8 +1361,8 @@ body {
 .pim-attr-btn {
   width: 100%;
   border: 0.0625rem solid #cbd5e1;
-  background: #f8fafc;
-  color: #1e3a5f;
+  background: #a9dbfaff;
+  color: #000;
   border-radius: 0.5rem;
   padding: 0.6rem 0.75rem;
   font-weight: 700;
@@ -1366,7 +1372,7 @@ body {
 }
 
 .pim-attr-btn:hover {
-  background: #eef4ff;
+  background: #c2e8ffff;
   border-color: #94a3b8;
 }
 
@@ -1578,7 +1584,8 @@ body {
 }
 
 /* ── Map Tooltips & Overlap Prevention ── */
-.section-tooltip, .lot-tooltip {
+.section-tooltip,
+.lot-tooltip {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -1617,27 +1624,27 @@ body {
 }
 
 .section-tooltip {
-    background: rgba(255, 255, 255, 0.95) !important;
-    border: 1.5px solid #1e3a5f !important;
-    border-radius: 4px !important;
-    color: #1e3a5f !important;
-    font-weight: 800;
-    font-size: 11px;
-    padding: 2px 6px;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2) !important;
-    white-space: nowrap;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1.5px solid #1e3a5f !important;
+  border-radius: 4px !important;
+  color: #1e3a5f !important;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 6px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2) !important;
+  white-space: nowrap;
 }
 
 .lot-tooltip {
-    background: rgba(255, 255, 255, 0.85) !important; 
-    border: 1px solid #1e3a5f !important;
-    border-radius: 3px !important;
-    color: #1e3a5f !important;
-    font-weight: 800;
-    font-size: 10px;
-    padding: 2px 5px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
-    white-space: nowrap;
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid #1e3a5f !important;
+  border-radius: 3px !important;
+  color: #1e3a5f !important;
+  font-weight: 800;
+  font-size: 10px;
+  padding: 2px 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  white-space: nowrap;
 }
 
 /* Remove Leaflet default tooltip tail (triangle) */
@@ -1647,260 +1654,263 @@ body {
 }
 
 
-  .leaflet-tooltip {
-    pointer-events: none;
-  }
+.leaflet-tooltip {
+  pointer-events: none;
+}
 
-  /* REAL PROPERTY TAX DASHBOARD — REDESIGN */
-  .rpt-page {
-    padding: 1.5rem 2.5rem 3rem;
-    color: #0f1d35;
-    background-color: #f8fafc;
-    min-height: 100%;
-    overflow-y: auto;
-  }
+/* REAL PROPERTY TAX DASHBOARD — REDESIGN */
+.rpt-page {
+  padding: 1.5rem 2.5rem 3rem;
+  color: #0f1d35;
+  background-color: #f8fafc;
+  min-height: 100%;
+  overflow-y: auto;
+}
 
-  .rpt-header {
-    text-align: center;
-    margin-bottom: 2rem;
-  }
+.rpt-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
 
-  .rpt-header h1 {
-    font-size: 2.2rem;
-    font-weight: 800;
-    letter-spacing: -0.02rem;
-    margin: 0;
-    color: #1a202c;
-  }
+.rpt-header h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02rem;
+  margin: 0;
+  color: #1a202c;
+}
 
-  .rpt-header p {
-    margin: 0.25rem 0 0;
-    font-weight: 600;
-    color: #64748b;
-    font-size: 1.1rem;
-  }
+.rpt-header p {
+  margin: 0.25rem 0 0;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 1.1rem;
+}
 
+.rpt-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
   .rpt-dashboard-grid {
-    display: grid;
-    grid-template-columns: 1.6fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-    align-items: start;
+    grid-template-columns: 1fr;
   }
+}
 
-  @media (max-width: 1024px) {
-    .rpt-dashboard-grid {
-      grid-template-columns: 1fr;
-    }
-  }
+.rpt-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  border: 1px solid #edf2f7;
+  position: relative;
+}
 
-  .rpt-card {
-    background: #ffffff;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
-    border: 1px solid #edf2f7;
-    position: relative;
-  }
+.rpt-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 1.5rem 0;
+  color: #334155;
+}
 
-  .rpt-card-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    margin: 0 0 1.5rem 0;
-    color: #334155;
-  }
+.rpt-chart-container {
+  height: 28rem;
+  position: relative;
+}
 
-  .rpt-chart-container {
-    height: 28rem;
-    position: relative;
-  }
+.rpt-chart-container.small {
+  height: 18rem;
+}
 
-  .rpt-chart-container.small {
-    height: 18rem;
-  }
+.rpt-side-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
 
-  .rpt-side-col {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
+.rpt-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
 
-  .rpt-summary-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+.rpt-summary-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #f1f5f9;
+}
 
-  .rpt-summary-table th {
-    text-align: left;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #94a3b8;
-    text-transform: uppercase;
-    letter-spacing: 0.05rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid #f1f5f9;
-  }
+.rpt-summary-table td {
+  padding: 1rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+  vertical-align: middle;
+}
 
-  .rpt-summary-table td {
-    padding: 1rem 0;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #1e293b;
-    vertical-align: middle;
-  }
+.rpt-summary-table tr:last-child td {
+  border-bottom: none;
+}
 
-  .rpt-summary-table tr:last-child td {
-    border-bottom: none;
-  }
+.rpt-summary-table .right {
+  text-align: right;
+}
 
-  .rpt-summary-table .right {
-    text-align: right;
-  }
+.rpt-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
 
-  .rpt-cat-cell {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
+.rpt-cat-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
 
-  .rpt-cat-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    flex-shrink: 0;
-  }
+.rpt-money {
+  color: #0f1d35;
+  font-family: inherit;
+  font-weight: 700;
+}
 
-  .rpt-money {
-    color: #0f1d35;
-    font-family: inherit;
-    font-weight: 700;
-  }
+.rpt-money.negative {
+  color: #e53e3e;
+}
 
-  .rpt-money.negative {
-    color: #e53e3e;
-  }
+.rpt-currency {
+  font-weight: 400;
+  margin-right: 2px;
+  opacity: 0.8;
+}
 
-  .rpt-currency {
-    font-weight: 400;
-    margin-right: 2px;
-    opacity: 0.8;
-  }
+.rpt-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #94a3b8;
+  font-weight: 500;
+}
 
-  .rpt-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #94a3b8;
-    font-weight: 500;
-  }
+.rpt-refresh-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: #fffbeb;
+  border: 1px solid #fef3c7;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  margin-bottom: 2rem;
+}
 
-  .rpt-refresh-banner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    background: #fffbeb;
-    border: 1px solid #fef3c7;
-    padding: 0.75rem 1.5rem;
-    border-radius: 0.75rem;
-    margin-bottom: 2rem;
-  }
+.rpt-refresh-banner p {
+  margin: 0;
+  color: #92400e;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 
-  .rpt-refresh-banner p {
-    margin: 0;
-    color: #92400e;
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
+.rpt-refresh-banner button {
+  background: #92400e;
+  color: white;
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
 
-  .rpt-refresh-banner button {
-    background: #92400e;
-    color: white;
-    border: none;
-    padding: 0.4rem 1rem;
-    border-radius: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
+.rpt-refresh-banner button:hover {
+  background: #78350f;
+}
 
-  .rpt-refresh-banner button:hover {
-    background: #78350f;
-  }
+.rpt-assess-header {
+  text-align: center;
+  margin: 2.5rem 0 1.5rem;
+}
 
-  .rpt-assess-header {
-    text-align: center;
-    margin: 2.5rem 0 1.5rem;
-  }
+.rpt-assess-header h2 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 0;
+}
 
-  .rpt-assess-header h2 {
-    font-size: 1.8rem;
-    font-weight: 800;
-    margin: 0;
-  }
+.rpt-table-wrap {
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.08);
+  overflow-x: auto;
+}
 
-  .rpt-table-wrap {
-    background: #fff;
-    border-radius: 0.75rem;
-    padding: 1rem;
-    box-shadow: 0 0.5rem 1.5rem rgba(15, 23, 42, 0.08);
-    overflow-x: auto;
-  }
+.rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
 
-  .rpt-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-  }
+.rpt-table thead th {
+  background: #d97706;
+  color: #0f1d35;
+  border: 1px solid #cbd5e1;
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  font-weight: 800;
+}
 
-  .rpt-table thead th {
-    background: #d97706;
-    color: #0f1d35;
-    border: 1px solid #cbd5e1;
-    padding: 0.4rem 0.5rem;
-    text-align: center;
-    font-weight: 800;
-  }
+.rpt-table tbody td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
+}
 
-  .rpt-table tbody td {
-    border: 1px solid #cbd5e1;
-    padding: 0.35rem 0.5rem;
-    text-align: center;
-  }
+.rpt-table tbody td:first-child {
+  text-align: left;
+  font-weight: 700;
+}
 
-  .rpt-table tbody td:first-child {
-    text-align: left;
-    font-weight: 700;
-  }
+.rpt-total-row td {
+  font-weight: 800;
+  background: #fef3c7;
+}
 
-  .rpt-total-row td {
-    font-weight: 800;
-    background: #fef3c7;
-  }
+.rpt-note {
+  margin-top: 1.25rem;
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
 
-  .rpt-note {
-    margin-top: 1.25rem;
-    color: #b91c1c;
-    font-size: 0.85rem;
-  }
+.rpt-note span {
+  font-weight: 800;
+}
 
-  .rpt-note span {
-    font-weight: 800;
-  }
+.highlight-navy {
+  border-left: 0.25rem solid #0f1d35;
+  background: #f8fafc !important;
+}
 
-  .highlight-navy { border-left: 0.25rem solid #0f1d35; background: #f8fafc !important; }
+.rpt-money {
+  white-space: nowrap;
+}
 
-  .rpt-money {
-    white-space: nowrap;
-  }
-
-  .rpt-currency {
-    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans", "Arial Unicode MS", "Segoe UI", Arial, sans-serif;
-    margin-right: 0.15rem;
-  }
+.rpt-currency {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans", "Arial Unicode MS", "Segoe UI", Arial, sans-serif;
+  margin-right: 0.15rem;
+}
 
 /* ════════════════════════════════════════
    CAD MAP
@@ -1995,7 +2005,7 @@ body {
   border-radius: 4px;
   margin-right: 12px;
   flex-shrink: 0;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .cad-map-area {
