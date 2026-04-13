@@ -1,277 +1,372 @@
 # Tax Filling Project
 
-This is a step-by-step setup guide for Windows using Docker (recommended).
+Windows-first setup guide for the San Pascual tax mapping system.
 
-## What you are setting up
+The app has:
 
-- Django backend (Python)
-- React frontend (Vite)
+- Django backend with GeoDjango
+- React frontend with Vite
 - PostgreSQL + PostGIS in Docker
-- pgAdmin in Docker (database GUI)
+- PIM and CAD GeoPackage import flow
+- SVM values stored in the database
+- dashboard totals built from PIM attributes, SVM rates, and saved lot adjustments
 
-## 1. Install required software
+## Quick Start
+
+If you only want the app running on a fresh machine, use this order:
+
+1. Install the prerequisites.
+2. Start Docker.
+3. Install Python dependencies.
+4. Run Django migrations.
+5. Restore a current database backup or import raw map data.
+6. Import SVM into the `SmvRate` table only if your database does not already have it.
+7. Rebuild the dashboard cache if needed.
+8. Start backend and frontend.
+
+If your database does not have PIM data and `SmvRate` data, the app can open, but the PIM computations and dashboard totals will not match the latest SVM-driven logic.
+
+## Prerequisites
 
 Install these first:
 
 1. Docker Desktop
-2. Python (3.11 or 3.12 recommended)
-3. Node.js (LTS)
-4. OSGeo4W (for `ogr2ogr`, optional until you import `.gpkg`)
+2. Python 3.11 or 3.12
+3. Node.js LTS
+4. OSGeo4W with `gdal`
 
-## 2. Open the project folder
+This project uses OSGeo4W for:
 
-```bat
-cd D:\geodetic_thesis\tax-filling-alpha
+- GeoDjango GDAL/GEOS DLLs on Windows
+- `ogr2ogr` GeoPackage import
+
+Recommended OSGeo4W install folders:
+
+- `C:\OSGeo4W`
+- `D:\osgeo4w`
+
+Make sure these exist after install:
+
+```text
+C:\OSGeo4W\bin\ogr2ogr.exe
+C:\OSGeo4W\bin\geos_c.dll
+C:\OSGeo4W\share\proj
+C:\OSGeo4W\share\gdal
 ```
 
-## 3. Start database containers (PostGIS + pgAdmin)
+The project auto-detects OSGeo4W from:
+
+- `OSGEO4W_ROOT`
+- `OSGEO4W_BIN`
+- `OSGEO4W_PROJ`
+- `OSGEO4W_GDAL`
+- `PATH`
+- common install folders like `C:\OSGeo4W`, `C:\OSGeo4W64`, and `D:\osgeo4w`
+
+If auto-detection fails, set this once in the terminal before running Django or import scripts:
+
+```bat
+set OSGEO4W_ROOT=C:\OSGeo4W
+```
+
+## 1. Open The Project
+
+```bat
+cd C:\taax\tax-filling-alpha
+```
+
+## 2. Start PostGIS And pgAdmin
 
 ```bat
 docker compose up -d
 docker compose ps
 ```
 
-You should see:
-- `taxfiling-postgis` running on `5433`
-- `taxfiling-pgadmin` running on `5050`
+Default ports:
 
-## 4. Enable PostGIS extension in the database
+- PostGIS: `localhost:5433`
+- pgAdmin: `http://localhost:5050`
+
+Default database credentials from [docker-compose.yml](/abs/path/c:/taax/tax-filling-alpha/docker-compose.yml:1):
+
+- DB name: `taxfiling`
+- DB user: `taxuser`
+- DB password: `pops1245`
+
+Enable the extension once:
 
 ```bat
 docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "CREATE EXTENSION IF NOT EXISTS postgis;"
-docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT PostGIS_Full_Version();"
 ```
 
-## 5. Set up Python backend
+## 3. Set Up The Backend
+
+From the project root:
 
 ```bat
-python -m venv venv
-venv\Scripts\activate
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
+```
+
+Start the backend:
+
+```bat
 python manage.py runserver
 ```
 
-Backend URL: `http://127.0.0.1:8000`
+Backend URL:
 
-## 6. Set up frontend
+- `http://127.0.0.1:8000`
+
+Notes:
+
+- The backend reads database settings from `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`.
+- Local defaults already point to the Docker database on `localhost:5433`.
+- On Windows, Django will fail fast if OSGeo4W cannot be found.
+
+## 4. Set Up The Frontend
 
 Open a second terminal:
 
 ```bat
-cd D:\geodetic_thesis\tax-filling-alpha\frontend
+cd C:\taax\tax-filling-alpha\frontend
 npm install
 npm run dev
 ```
 
-Frontend URL: usually `http://localhost:5173`
+Frontend URL:
 
-## 7. Use pgAdmin (GUI for database)
+- `http://localhost:5173`
 
-Open:
-- `http://localhost:5050`
+## 5. Choose A Data Setup Path
 
-Login:
-- Email: `admin@example.com`
-- Password: `admin123`
+You have two practical options.
 
-Add server:
+### Option A: Restore A Database Dump
 
-1. Right-click `Servers` -> `Register` -> `Server...`
-2. In `General` tab, set Name: `taxfiling-db`
-3. In `Connection` tab use:
-   - Host name/address: `db`
-   - Port: `5432`
-   - Maintenance DB: `taxfiling`
-   - Username: `taxuser`
-   - Password: `pops1245`
-4. Click `Save`
-
-## 8. Import a `.gpkg` file into PostGIS
-
-If `ogr2ogr` is not recognized, run this first in the same terminal:
-
-```bat
-set PATH=D:\osgeo4w\bin;%PATH%
-set PROJ_LIB=D:\osgeo4w\share\proj
-set PROJ_DATA=D:\osgeo4w\share\proj
-set GDAL_DATA=D:\osgeo4w\share\gdal
-ogr2ogr --version
-```
-
-Then import sample file:
-
-```bat
-ogr2ogr --config PROJ_DATA "D:\osgeo4w\share\proj" --config GDAL_DATA "D:\osgeo4w\share\gdal" -f PostgreSQL PG:"host=localhost port=5433 dbname=taxfiling user=taxuser password=pops1245" "D:\geodetic_thesis\tax-filling-alpha\maps\static\CAD\Alalum.gpkg" -nln cad_alalum -lco GEOMETRY_NAME=geom -lco FID=id -s_srs EPSG:3123 -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI -makevalid -skipfailures
-```
-
-Verify import:
-
-```bat
-docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM cad_alalum;"
-```
-
-## 9. Recommended: import all maps with folder-aware structure
-
-This repo includes:
-- `scripts/postgis_schema.sql` (creates normalized map tables)
-- `scripts/import_gpkg_to_postgis.ps1` (imports all `maps/static` GeoPackages)
-
-Run from project root:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
-```
-
-It imports into:
-- `cad_maps` from `maps/static/CAD/*.gpkg`
-- `pim_barangay_boundaries` from `maps/static/PIM/*.gpkg`
-- `pim_sections` from `maps/static/PIM/*/sections/*.gpkg`
-- `pim_enlargements` from `maps/static/PIM/*/enlargements/*.gpkg`
-
-This keeps DB data aligned with your folder structure.
-
-## 10. Current Django DB behavior
-
-`taxfiling/settings.py` is already configured to auto-switch:
-
-- Uses Docker DB at `localhost:5433` if reachable
-- Falls back to local PostgreSQL at `localhost:5432`
-
-You can also override with env vars:
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-
-## 11. Change Docker Postgres username/password
-
-Use one of these two methods:
-
-### A) Fresh start (easiest, deletes old DB data)
-
-1. Edit `docker-compose.yml` under `db.environment`:
-   - `POSTGRES_USER`
-   - `POSTGRES_PASSWORD`
-   - `POSTGRES_DB` (optional)
-2. Stop and remove containers + volume:
-
-```bat
-docker compose down -v
-```
-
-3. Start again:
-
-```bat
-docker compose up -d
-```
-
-4. Update app config to match:
-   - `taxfiling/settings.py` env vars (`DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT`)
-   - pgAdmin saved server credentials
-   - import scripts / `ogr2ogr` connection string
-
-### B) Keep existing DB data (recommended if DB already has important data)
-
-1. Keep container running with current credentials.
-2. Change password inside PostgreSQL:
-
-```bat
-docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "ALTER USER taxuser WITH PASSWORD 'new_password_here';"
-```
-
-3. Update app config and tools with new password:
-   - `DB_PASSWORD` in environment
-   - pgAdmin saved server password
-   - `ogr2ogr` / import script password
-
-4. Restart backend after password change.
-
-Tip: changing `POSTGRES_USER` in `docker-compose.yml` does not rename an existing DB role inside old persisted volumes. For existing volumes, create/alter roles with SQL.
-
-## 12. Useful checks
-
-List database roles/users:
-
-```sql
-\du
-```
-
-See users registered from the website:
-
-```sql
-\c taxfiling
-SELECT id, username, email, is_staff, is_superuser, date_joined
-FROM auth_user
-ORDER BY id DESC;
-```
-
-Check map row counts:
-
-```sql
-SELECT COUNT(*) FROM cad_maps;
-SELECT COUNT(*) FROM pim_barangay_boundaries;
-SELECT COUNT(*) FROM pim_sections;
-SELECT COUNT(*) FROM pim_enlargements;
-```
-
-## 13. Sync DB to another device
-
-### Backup and restore (simplest)
-
-On laptop A:
-
-```bat
-docker exec -t taxfiling-postgis pg_dump -U taxuser -d taxfiling > taxfiling.sql
-```
-
-Copy `taxfiling.sql` to laptop B.
-
-On laptop B:
+Use this if you want the fastest setup.
 
 ```bat
 docker exec -i taxfiling-postgis psql -U taxuser -d taxfiling < taxfiling.sql
+python manage.py migrate
 ```
 
-This is the easiest sync method.
+Important:
 
-### Share SQL dump via cloud
+- `taxfiling.sql` is an older full PostgreSQL dump.
+- It does not include the newer SVM database table and dashboard cache flow.
+- For the latest computation flow, use a current team backup if you have one.
+- If you only have `taxfiling.sql`, you will still need SVM data and a dashboard cache rebuild.
 
-Save `taxfiling.sql` in Google Drive / OneDrive / Git LFS / private storage.
-Import on the other device whenever needed.
+### Option B: Rebuild From Raw GeoPackages
 
-### Expose one device as central DB (advanced)
+Use this only if you are rebuilding the database from raw source files.
 
-One machine hosts PostgreSQL and other devices connect over network.
-This needs static IP, firewall rules, strong passwords, and SSL/VPN.
-Good for real-time shared DB, but more setup and security work.
+Important:
 
-## 14. Common problems
+- The running app no longer reads map data from `maps/static`.
+- `maps/static` is only a staging location used by the legacy import script and the SVM import command.
+- If your team now stores raw GeoPackages elsewhere, this option is not your normal setup path.
 
-### `http://localhost:5050` not opening
+Run from the project root:
 
-Run:
+```bat
+powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
+```
+
+If OSGeo4W is in a custom folder:
+
+```bat
+powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1 -OSGeo4WRoot "C:\OSGeo4W"
+```
+
+This imports:
+
+- `maps/static/CAD/*.gpkg` into `cad_maps`
+- `maps/static/PIM/*.gpkg` into `pim_barangay_boundaries`
+- `maps/static/PIM/*/sections/*.gpkg` into `pim_sections`
+- `maps/static/PIM/*/enlargements/*.gpkg` into `pim_enlargements`
+
+## 6. Import SVM To The Database
+
+Run this only when:
+
+- your restored database does not have `maps_smvrate` data, or
+- you are rebuilding from raw SMV GeoPackages
+
+Newer computation logic reads SVM from the `SmvRate` table, not directly from GeoPackages at request time.
+
+After your map data is ready, run:
+
+```bat
+python manage.py migrate_smv_to_db
+```
+
+This command reads the SMV GeoPackages inside:
+
+```text
+maps/static/SMV/Residential
+maps/static/SMV/Agricultural
+maps/static/SMV/Commercial
+maps/static/SMV/Industrial
+```
+
+and stores their values in `maps_smvrate`.
+
+If your team no longer keeps raw SMV files under `maps/static/SMV`, treat that folder path as a legacy importer path, not as a runtime requirement.
+
+## 7. Rebuild The Dashboard Cache
+
+The dashboard totals are now cached in the database and built from:
+
+- normalized PIM lot attributes
+- `SmvRate`
+- `LotAdjustment`
+
+Build or refresh the cache with:
+
+```bat
+python manage.py build_rpt_report_cache
+```
+
+This writes the dashboard payload into `RptReportCache`.
+
+When to rerun it:
+
+- after restoring `taxfiling.sql`
+- after reimporting PIM or SMV data
+- after bulk lot adjustment changes
+- when dashboard totals look stale
+
+The app also tries to build the cache automatically on `runserver` startup if the cache is empty, but manual rebuild is the safest option after data changes.
+
+## 8. First Login / URLs
+
+App URLs:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://127.0.0.1:8000`
+- pgAdmin: `http://localhost:5050`
+
+pgAdmin default login:
+
+- Email: `admin@example.com`
+- Password: `admin123`
+
+To register the Docker database inside pgAdmin:
+
+1. Right-click `Servers`
+2. Select `Register` then `Server...`
+3. Set any server name you want
+4. Under `Connection`, use:
+
+```text
+Host: db
+Port: 5432
+Database: taxfiling
+Username: taxuser
+Password: pops1245
+```
+
+## Current Data Behavior
+
+The important current rules are:
+
+- PIM lot computations use normalized PIM attributes plus SVM values from `SmvRate`
+- saved dirt-road access adjustments are stored in `LotAdjustment`
+- dashboard totals are generated from the same backend logic and stored in `RptReportCache`
+- `Poblacion 1`, `Poblacion 2`, `Poblacion 3`, and `Poblacion 4` are treated as separate barangays in PIM drilldown
+
+If you click the combined municipality-level `Poblacion` polygon, use the PIM barangay list to open the specific numbered Poblacion instead.
+
+## Daily Dev Commands
+
+Backend:
+
+```bat
+.venv\Scripts\activate
+python manage.py runserver
+```
+
+Frontend:
+
+```bat
+cd frontend
+npm run dev
+```
+
+Rebuild dashboard cache:
+
+```bat
+python manage.py build_rpt_report_cache
+```
+
+Reimport SVM:
+
+```bat
+python manage.py migrate_smv_to_db
+```
+
+## Common Problems
+
+### `Could not locate OSGeo4W automatically`
+
+Set the install root before running Django:
+
+```bat
+set OSGEO4W_ROOT=C:\OSGeo4W
+```
+
+### `'ogr2ogr' is not recognized`
+
+Make sure OSGeo4W is installed with `gdal`, or add its `bin` folder to `PATH`.
+
+### `proj.db ... from another PROJ installation`
+
+Use the OSGeo4W environment for the current terminal:
+
+```bat
+set PATH=C:\OSGeo4W\bin;%PATH%
+set PROJ_LIB=C:\OSGeo4W\share\proj
+set PROJ_DATA=C:\OSGeo4W\share\proj
+set GDAL_DATA=C:\OSGeo4W\share\gdal
+```
+
+### pgAdmin does not open
+
+Check the containers:
 
 ```bat
 docker compose ps
 docker logs taxfiling-pgadmin
 ```
 
-If `pgadmin` is restarting, check email/password config in `docker-compose.yml`.
+### Dashboard totals are not updating
 
-### `'ogr2ogr' is not recognized`
+Rebuild the cache:
 
-Add `D:\osgeo4w\bin` to PATH in that terminal (see step 8).
+```bat
+python manage.py build_rpt_report_cache
+```
 
-### `proj.db ... from another PROJ installation`
+Also make sure `python manage.py migrate_smv_to_db` has already been run, because the new dashboard logic depends on `SmvRate`.
 
-Set `PROJ_LIB`, `PROJ_DATA`, and `GDAL_DATA` to `D:\osgeo4w\share\...` (step 8).
+## Useful Checks
 
-### `Could not find the GDAL library`
+Show row counts:
 
-Check these exist:
-- `D:\osgeo4w\bin\gdal312.dll`
-- `D:\osgeo4w\bin\geos_c.dll`
+```bat
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM cad_maps;"
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM pim_barangay_boundaries;"
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM pim_sections;"
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM pim_enlargements;"
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT COUNT(*) FROM maps_smvrate;"
+```
 
-Check paths in `taxfiling/settings.py`.
+List Django users:
+
+```bat
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "SELECT id, username, email, is_staff, is_superuser FROM auth_user ORDER BY id;"
+```

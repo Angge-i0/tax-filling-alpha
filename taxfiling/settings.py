@@ -1,25 +1,36 @@
 from datetime import timedelta
 import os
 from pathlib import Path
+from .osgeo import discover_osgeo4w
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # GeoDjango (PostGIS backend) requires native GDAL/GEOS DLLs on Windows.
-# If you installed OSGeo4W/QGIS somewhere else (a common "wrong install path"
-# issue), update these two paths to point at the actual DLLs on your machine.
-GEOS_LIBRARY_PATH = r"D:\osgeo4w\bin\geos_c.dll"
-GDAL_LIBRARY_PATH = r"D:\osgeo4w\bin\gdal312.dll"
-OSGEO4W_BIN = r"D:\osgeo4w\bin"
-OSGEO4W_PROJ = r"D:\osgeo4w\share\proj"
-OSGEO4W_GDAL = r"D:\osgeo4w\share\gdal"
+# We auto-detect OSGeo4W from env vars, PATH, or common install roots so the
+# project doesn't need a hardcoded drive letter or specific gdalXYZ.dll name.
+_osgeo4w = discover_osgeo4w()
+if _osgeo4w:
+    GEOS_LIBRARY_PATH = str(_osgeo4w.geos_library)
+    GDAL_LIBRARY_PATH = str(_osgeo4w.gdal_library)
+    OSGEO4W_BIN = str(_osgeo4w.bin_dir)
+    OSGEO4W_PROJ = str(_osgeo4w.proj_data)
+    OSGEO4W_GDAL = str(_osgeo4w.gdal_data)
 
-# Force GeoDjango/GDAL to use OSGeo4W data files (avoid old PostGIS PROJ db).
-os.environ["PROJ_LIB"] = OSGEO4W_PROJ
-os.environ["PROJ_DATA"] = OSGEO4W_PROJ
-os.environ["GDAL_DATA"] = OSGEO4W_GDAL
-if OSGEO4W_BIN not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = OSGEO4W_BIN + os.pathsep + os.environ.get("PATH", "")
+    # Force GeoDjango/GDAL to use the matched OSGeo4W data files.
+    os.environ["PROJ_LIB"] = OSGEO4W_PROJ
+    os.environ["PROJ_DATA"] = OSGEO4W_PROJ
+    os.environ["GDAL_DATA"] = OSGEO4W_GDAL
+
+    path_entries = os.environ.get("PATH", "").split(os.pathsep)
+    if OSGEO4W_BIN not in path_entries:
+        os.environ["PATH"] = OSGEO4W_BIN + os.pathsep + os.environ.get("PATH", "")
+elif os.name == "nt":
+    raise RuntimeError(
+        "Could not locate OSGeo4W automatically. Install OSGeo4W, add its bin "
+        "folder to PATH, or set OSGEO4W_ROOT to the install folder "
+        "(example: D:\\osgeo4w)."
+    )
 
 
 # Quick-start development settings - unsuitable for production

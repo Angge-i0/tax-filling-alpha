@@ -20,7 +20,7 @@ from django.contrib.gis.db.models.aggregates import Union
 from django.conf import settings
 
 from .models import PimSection, PimEnlargement, LotAdjustment
-from .views import _RPT_REPORT_CACHE, _RPT_REPORT_CACHE_FILE
+from .views import _RPT_REPORT_CACHE
 from .views import api_login_required
 
 BARANGAY_VARIANTS = {
@@ -28,15 +28,20 @@ BARANGAY_VARIANTS = {
     'Sto. Nino': ['Sto. Nino', 'Sto Nino', 'Sto Niño', 'Sto. Niño', 'Santo Nino', 'Santo Niño'],
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
-    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
 }
+
+POBLACION_VARIANTS = ['Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4']
 
 # Column name normalisation for frontend consistency.
 COLUMN_MAP = {
     'pin': 'pin',
+    'lot number': 'lot_number',
+    'lot no.': 'lot_number',
+    'lot no': 'lot_number',
     'name of owner': 'owner',
     'property owner': 'owner',
     'address of owner': 'address',
+    'address of number': 'address',
     'address': 'address',
     'addres of owner': 'address',
     'adress of owner': 'address',
@@ -69,6 +74,10 @@ COLUMN_MAP = {
     'area rrw': 'area_rrw',
     'area (exempt)': 'area_exempt',
     'area exempt': 'area_exempt',
+    'area': 'area',
+    'type of land use': 'land_use',
+    'land use': 'land_use',
+    'classification': 'land_use',
 }
 
 IGNORE_COLUMNS = {'1', 'geometry', 'geom', 'id', 'fid'}
@@ -89,8 +98,6 @@ SMV_CLASS_FOLDERS = {
 
 _SMV_CACHE = {}
 
-_RPT_REPORT_CACHE_FILE = Path(settings.BASE_DIR) / 'maps' / 'static' / 'rpt_report_cache.json'
-
 _RPT_CLASS_META = {
     'res': {'label': 'RESIDENTIAL', 'area_key': 'area_res', 'assessment_level': 0.05},
     'agri': {'label': 'AGRICULTURAL', 'area_key': 'area_agri', 'assessment_level': 0.06},
@@ -98,23 +105,16 @@ _RPT_CLASS_META = {
     'indl': {'label': 'INDUSTRIAL', 'area_key': 'area_indl', 'assessment_level': 0.45},
 }
 
+_LAND_USE_PATTERNS = {
+    'res': re.compile(r'\bres(?:idential)?\b', re.IGNORECASE),
+    'agri': re.compile(r'\bagri(?:cultural|culture)?\b', re.IGNORECASE),
+    'comml': re.compile(r'\bcomm(?:ercial|l)?\b', re.IGNORECASE),
+    'indl': re.compile(r'\bind(?:ustrial|l)?\b', re.IGNORECASE),
+}
+
 
 def _slug(value: str) -> str:
     return re.sub(r'[^a-z0-9]+', '', (value or '').lower())
-
-
-def _find_smv_files(class_folder: str, barangay_name: str) -> list[Path]:
-    base_dir = Path(settings.BASE_DIR) / 'maps' / 'static' / 'SMV' / class_folder
-    if not base_dir.exists():
-        return []
-    variants = _barangay_variants(barangay_name)
-    needles = [_slug(v) for v in variants] + [_slug(barangay_name)]
-    matches = []
-    for file in base_dir.glob('*.gpkg'):
-        slug = _slug(file.stem)
-        if any(n and n in slug for n in needles):
-            matches.append(file)
-    return matches
 
 
 def _load_smv_cache(barangay_name: str, class_key: str) -> dict:
@@ -122,53 +122,32 @@ def _load_smv_cache(barangay_name: str, class_key: str) -> dict:
     if cache_key in _SMV_CACHE:
         return _SMV_CACHE[cache_key]
 
-    class_folder = SMV_CLASS_FOLDERS.get(class_key)
-    if not class_folder:
-        _SMV_CACHE[cache_key] = {}
-        return {}
+    from .models import SmvRate
 
-    files = _find_smv_files(class_folder, barangay_name)
+    # Fallback to variants if exact match not found
+    variants = _barangay_variants(barangay_name)
+    variants.append(barangay_name)
+
+    qs = SmvRate.objects.filter(class_key=class_key)
+    # Check if exact match has data
+    if not qs.filter(barangay__iexact=barangay_name).exists():
+        # Match using alternatives
+        condition = Q()
+        for variant in variants:
+            condition |= Q(barangay__icontains=variant)
+        qs = qs.filter(condition)
+    else:
+        qs = qs.filter(barangay__iexact=barangay_name)
+
     data = {}
-    for file_path in files:
-        try:
-            conn = sqlite3.connect(str(file_path))
-            cur = conn.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [r[0] for r in cur.fetchall()]
-            for table in tables:
-                if table.startswith('gpkg_') or table.startswith('rtree_') or table == 'sqlite_sequence':
-                    continue
-                cur.execute(f"PRAGMA table_info('{table}')")
-                cols = [c[1] for c in cur.fetchall()]
-                if not cols:
-                    continue
-                pin_col = next((c for c in cols if str(c).lower() == 'pin'), None)
-                unit_col = next((c for c in cols if 'unit value' in str(c).lower()), None)
-                rrw_col = next((c for c in cols if 'area rrw' in str(c).lower()), None)
-                if not pin_col or not unit_col:
-                    continue
-                cur.execute(f"SELECT \"{pin_col}\", \"{unit_col}\"{f', \"{rrw_col}\"' if rrw_col else ''} FROM '{table}'")
-                for row in cur.fetchall():
-                    pin = str(row[0]).strip() if row[0] is not None else ''
-                    if not pin:
-                        continue
-                    if pin in data:
-                        continue
-                    unit_val = row[1]
-                    rrw_val = None
-                    if rrw_col:
-                        rrw_val = row[2]
-                    data[pin] = {
-                        'unit_value': unit_val,
-                        'area_rrw': rrw_val,
-                    }
-        except Exception:
-            pass
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    for row in qs:
+        pin = row.pin
+        if not pin or pin in data:
+            continue
+        data[pin] = {
+            'unit_value': float(row.unit_value),
+            'area_rrw': float(row.area_rrw) if row.area_rrw is not None else None,
+        }
 
     _SMV_CACHE[cache_key] = data
     return data
@@ -186,13 +165,13 @@ def _safe_num(value):
 def _update_rpt_cache_for_pin(pin: str, old_rate: float, new_rate: float):
     if not pin or old_rate == new_rate:
         return
-    if not _RPT_REPORT_CACHE_FILE.exists():
+    
+    from .models import RptReportCache
+    cache_obj = RptReportCache.objects.filter(key='dashboard_rpt').first()
+    if not cache_obj:
         return
-    try:
-        with open(_RPT_REPORT_CACHE_FILE, 'r', encoding='utf-8') as f:
-            payload = json.load(f)
-    except Exception:
-        return
+        
+    payload = cache_obj.data
 
     rows = payload.get('assessment_table', {}).get('rows', [])
     rpt_by_class = payload.get('rpt_by_class', [])
@@ -203,39 +182,26 @@ def _update_rpt_cache_for_pin(pin: str, old_rate: float, new_rate: float):
     lot_props = None
     lot_barangay = None
     for row in PimSection.objects.values('barangay_name', 'properties').iterator():
-        props = _normalise_properties(row.get('properties') or {})
+        canonical_barangay = _canonical_barangay_name(row.get('barangay_name') or '')
+        props = _prepare_lot_properties(row.get('properties') or {}, canonical_barangay)
         p = props.get('pin') or props.get('PIN')
         if p and str(p).strip() == pin:
             lot_props = props
-            lot_barangay = _canonical_barangay_name(row.get('barangay_name') or '')
+            lot_barangay = canonical_barangay
             break
 
     if not lot_props or not lot_barangay:
         return
 
-    # Compute deltas
-    delta_market = 0.0
-    delta_assessed = 0.0
-    delta_rpt_by_class = {k: 0.0 for k in _RPT_CLASS_META.keys()}
-    tax_rate = 0.02
+    old_summary = _compute_lot_tax_summary(lot_props, old_rate)
+    new_summary = _compute_lot_tax_summary(lot_props, new_rate)
 
-    for class_key, meta in _RPT_CLASS_META.items():
-        area = _safe_num(lot_props.get(meta['area_key']))
-        if area <= 0:
-            continue
-        smv = _load_smv_cache(lot_barangay, class_key)
-        unit_val = _safe_num(smv.get(pin, {}).get('unit_value'))
-        if unit_val <= 0:
-            continue
-
-        market_old = area * unit_val * old_rate
-        market_new = area * unit_val * new_rate
-        assessed_old = market_old * meta['assessment_level']
-        assessed_new = market_new * meta['assessment_level']
-
-        delta_market += (market_new - market_old)
-        delta_assessed += (assessed_new - assessed_old)
-        delta_rpt_by_class[class_key] += (assessed_new - assessed_old) * tax_rate
+    delta_market = new_summary['market_value'] - old_summary['market_value']
+    delta_assessed = new_summary['assessed_value'] - old_summary['assessed_value']
+    delta_rpt_by_class = {
+        key: new_summary['rpt_by_class'][key] - old_summary['rpt_by_class'][key]
+        for key in _RPT_CLASS_META.keys()
+    }
 
     if delta_market == 0 and delta_assessed == 0:
         return
@@ -260,8 +226,8 @@ def _update_rpt_cache_for_pin(pin: str, old_rate: float, new_rate: float):
             item['amount'] = _safe_num(item.get('amount')) + delta_rpt_by_class[key]
 
     try:
-        with open(_RPT_REPORT_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(payload, f)
+        cache_obj.data = payload
+        cache_obj.save(update_fields=['data'])
     except Exception:
         pass
 
@@ -305,6 +271,143 @@ def _normalise_properties(properties):
     return normalised
 
 
+def _class_keys_from_land_use(value) -> list[str]:
+    text = str(value or '').strip()
+    if not text:
+        return []
+
+    matched = []
+    for class_key, pattern in _LAND_USE_PATTERNS.items():
+        if pattern.search(text):
+            matched.append(class_key)
+    return matched
+
+
+def _prepare_lot_properties(properties, barangay_name: str = ''):
+    props = _normalise_properties(properties)
+
+    pin_value = props.get('pin') or props.get('PIN')
+    pin = str(pin_value).strip() if pin_value else ''
+    if pin:
+        props['pin'] = pin
+        props['PIN'] = pin
+
+    smv_rows = {}
+    if barangay_name and pin:
+        for class_key in _RPT_CLASS_META.keys():
+            row = _load_smv_cache(barangay_name, class_key).get(pin)
+            if not row:
+                continue
+
+            smv_rows[class_key] = row
+
+            unit_value = _safe_num(row.get('unit_value'))
+            if unit_value > 0:
+                props[f'unit_value_{class_key}'] = unit_value
+
+            area_rrw = _safe_num(row.get('area_rrw'))
+            if area_rrw > 0 and _safe_num(props.get('area_rrw')) <= 0:
+                props['area_rrw'] = area_rrw
+                if unit_value > 0 and _safe_num(props.get('unit_value_rrw')) <= 0:
+                    props['unit_value_rrw'] = unit_value
+                if not props.get('rrw_class_key'):
+                    props['rrw_class_key'] = class_key
+
+    has_class_area = any(
+        _safe_num(props.get(meta['area_key'])) > 0
+        for meta in _RPT_CLASS_META.values()
+    )
+    generic_area = _safe_num(props.get('area'))
+
+    if not has_class_area and generic_area > 0:
+        candidate_keys = _class_keys_from_land_use(props.get('land_use'))
+        if not candidate_keys and smv_rows:
+            candidate_keys = list(smv_rows.keys())
+
+        candidate_keys = [key for key in candidate_keys if key in _RPT_CLASS_META]
+        if len(candidate_keys) == 1:
+            class_key = candidate_keys[0]
+            props[_RPT_CLASS_META[class_key]['area_key']] = generic_area
+            if not props.get('land_use'):
+                props['land_use'] = _RPT_CLASS_META[class_key]['label'].title()
+
+    active_class_keys = [
+        class_key
+        for class_key, meta in _RPT_CLASS_META.items()
+        if _safe_num(props.get(meta['area_key'])) > 0
+    ]
+    if len(active_class_keys) == 1:
+        unit_value = _safe_num(props.get(f'unit_value_{active_class_keys[0]}'))
+        if unit_value > 0:
+            props['unit_value'] = unit_value
+        if _safe_num(props.get('area_rrw')) > 0 and _safe_num(props.get('unit_value_rrw')) <= 0:
+            props['unit_value_rrw'] = unit_value
+            props['rrw_class_key'] = active_class_keys[0]
+
+    return props
+
+
+def _compute_lot_tax_summary(properties, lot_adjustment: float = 0.75):
+    summary = {
+        'market_value': 0.0,
+        'assessed_value': 0.0,
+        'rpt': 0.0,
+        'rpt_by_class': {key: 0.0 for key in _RPT_CLASS_META.keys()},
+        'market_by_class': {key: 0.0 for key in _RPT_CLASS_META.keys()},
+        'assessed_by_class': {key: 0.0 for key in _RPT_CLASS_META.keys()},
+        'active_base_classes': [],
+    }
+
+    tax_rate = 0.02
+    base_class_values = []
+
+    for class_key, meta in _RPT_CLASS_META.items():
+        area = _safe_num(properties.get(meta['area_key']))
+        unit_value = _safe_num(properties.get(f'unit_value_{class_key}'))
+        if area <= 0 or unit_value <= 0:
+            continue
+
+        market = area * unit_value * lot_adjustment
+        assessed = market * meta['assessment_level']
+
+        summary['market_value'] += market
+        summary['assessed_value'] += assessed
+        summary['rpt_by_class'][class_key] += assessed * tax_rate
+        summary['market_by_class'][class_key] += market
+        summary['assessed_by_class'][class_key] += assessed
+        summary['active_base_classes'].append(class_key)
+        base_class_values.append((class_key, area))
+
+    rrw_area = _safe_num(properties.get('area_rrw'))
+    if rrw_area > 0:
+        rrw_class_key = properties.get('rrw_class_key')
+        if rrw_class_key not in _RPT_CLASS_META:
+            if base_class_values:
+                rrw_class_key = max(base_class_values, key=lambda item: item[1])[0]
+            else:
+                rrw_class_key = None
+
+        rrw_unit_value = _safe_num(properties.get('unit_value_rrw'))
+        if rrw_unit_value <= 0 and rrw_class_key:
+            rrw_unit_value = _safe_num(properties.get(f'unit_value_{rrw_class_key}'))
+        if rrw_unit_value <= 0:
+            rrw_unit_value = _safe_num(properties.get('unit_value'))
+
+        if rrw_class_key and rrw_unit_value > 0:
+            assessment_level = _RPT_CLASS_META[rrw_class_key]['assessment_level']
+            market = rrw_area * rrw_unit_value * 0.20
+            assessed = market * assessment_level
+
+            summary['market_value'] += market
+            summary['assessed_value'] += assessed
+            summary['rpt_by_class'][rrw_class_key] += assessed * tax_rate
+            summary['market_by_class'][rrw_class_key] += market
+            summary['assessed_by_class'][rrw_class_key] += assessed
+
+    summary['rpt'] = summary['assessed_value'] * tax_rate
+    return summary
+
+
 def _has_enlargement_marker(properties: dict) -> bool:
     for value in (properties or {}).values():
         if isinstance(value, str) and 'see enlargement' in value.strip().lower():
@@ -321,6 +424,11 @@ def _extract_section_number(filename):
 
 def _canonical_barangay_name(name: str) -> str:
     cleaned = " ".join((name or '').strip().split())
+    if cleaned.lower() == 'poblacion':
+        return 'Poblacion'
+    for variant in POBLACION_VARIANTS:
+        if cleaned.lower() == variant.lower():
+            return variant
     for canonical, variants in BARANGAY_VARIANTS.items():
         for variant in variants:
             if cleaned.lower() == variant.lower():
@@ -330,6 +438,10 @@ def _canonical_barangay_name(name: str) -> str:
 
 def _barangay_variants(requested: str) -> list[str]:
     canonical = _canonical_barangay_name(requested)
+    if canonical == 'Poblacion':
+        return ['Poblacion', *POBLACION_VARIANTS]
+    if canonical in POBLACION_VARIANTS:
+        return [canonical]
     if canonical in BARANGAY_VARIANTS:
         return BARANGAY_VARIANTS[canonical]
     return [canonical]
@@ -427,7 +539,7 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
     lots_list = list(lots_qs)
     pins = []
     for row in lots_list:
-        props = row.properties or {}
+        props = _normalise_properties(row.properties)
         pin_val = props.get('PIN') or props.get('pin')
         if pin_val:
             pins.append(str(pin_val).strip())
@@ -436,14 +548,24 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
     features = []
     marker_count = 0
     for row in lots_list:
-        props = _normalise_properties(row.properties)
+        props = _prepare_lot_properties(row.properties, canonical_name)
         props['barangay'] = canonical_name
         props['section_number'] = section_number
         pin_value = props.get('pin') or props.get('PIN')
+        
+        lot_adj = 0.75
         if pin_value:
             pin_value = str(pin_value).strip()
             if pin_value in adj_map:
-                props['adjustment_rate'] = adj_map[pin_value]
+                lot_adj = adj_map[pin_value]
+        props['adjustment_rate'] = lot_adj
+        
+        tax_summary = _compute_lot_tax_summary(props, lot_adj)
+        if tax_summary['market_value'] > 0 or tax_summary['assessed_value'] > 0:
+            props['market_value'] = tax_summary['market_value']
+            props['assessed_value'] = tax_summary['assessed_value']
+            props['rpt'] = tax_summary['rpt']
+
         # Strict per-lot rule: show popup/button only when the lot attributes
         # explicitly contain "See enlargement".
         lot_has_enlargement = _has_enlargement_marker(props)
@@ -478,7 +600,7 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
 
     features = []
     for row in lots_qs:
-        props = _normalise_properties(row.properties)
+        props = _prepare_lot_properties(row.properties, canonical_name)
         props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))

@@ -13,8 +13,9 @@ class MapsConfig(AppConfig):
         if os.environ.get('RUN_MAIN') != 'true':
             return
         try:
-            from .views import build_rpt_report_cache, _RPT_REPORT_CACHE_FILE
-            if os.path.exists(_RPT_REPORT_CACHE_FILE):
+            from .views import build_rpt_report_cache
+            from .models import RptReportCache
+            if RptReportCache.objects.filter(key='dashboard_rpt').exists():
                 return
             build_rpt_report_cache()
         except Exception:

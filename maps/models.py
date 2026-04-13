@@ -163,3 +163,31 @@ class PimEnlargement(gis_models.Model):
     class Meta:
         managed = False
         db_table = 'pim_enlargements'
+
+
+class SmvRate(models.Model):
+    barangay = models.CharField(max_length=100)
+    class_key = models.CharField(max_length=20) # res, agri, comml, indl
+    pin = models.CharField(max_length=50)
+    unit_value = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    area_rrw = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    
+    class Meta:
+        unique_together = ('barangay', 'class_key', 'pin')
+        indexes = [
+            models.Index(fields=['barangay', 'class_key']),
+            models.Index(fields=['pin']),
+        ]
+
+    def __str__(self):
+        return f"{self.barangay} - {self.class_key} - {self.pin}"
+
+
+class RptReportCache(models.Model):
+    key = models.CharField(max_length=50, unique=True, default='dashboard_rpt')
+    data = models.JSONField()
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.key
+

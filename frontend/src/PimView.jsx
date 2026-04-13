@@ -9,10 +9,153 @@ const ALL_BARANGAYS = [
     'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
     'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
     'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
-    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
+    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila',
+    'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4',
     'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
+
+function getLotNumberProp(properties, keys) {
+    if (!properties || !Array.isArray(keys)) return 0;
+    for (const key of keys) {
+        if (!key) continue;
+        if (properties[key] !== undefined && properties[key] !== null && properties[key] !== '') {
+            const num = Number(properties[key]);
+            if (!Number.isNaN(num)) return num;
+        }
+        const lowerKey = String(key).toLowerCase();
+        const matchKey = Object.keys(properties).find(k => String(k).toLowerCase() === lowerKey);
+        if (!matchKey) continue;
+        const num = Number(properties[matchKey]);
+        if (!Number.isNaN(num)) return num;
+    }
+    return 0;
+}
+
+function computeLotTaxFromProperties(properties, refinementLevel) {
+    if (!properties) return null;
+
+    const baseAdjustment = (refinementLevel === 0.5 || refinementLevel === 0.75) ? refinementLevel : 0.75;
+    const classes = [
+        {
+            key: 'res',
+            label: 'Residential',
+            areaKeys: ['area_res', 'area_resi', 'area_residential'],
+            unitKeys: ['unit_value_res'],
+            assessmentLevel: 0.05
+        },
+        {
+            key: 'agri',
+            label: 'Agricultural',
+            areaKeys: ['area_agri', 'area_agriculture', 'area_agricultural'],
+            unitKeys: ['unit_value_agri'],
+            assessmentLevel: 0.06
+        },
+        {
+            key: 'comml',
+            label: 'Commercial',
+            areaKeys: ['area_comml', 'area_comm', 'area_commercial'],
+            unitKeys: ['unit_value_comml'],
+            assessmentLevel: 0.25
+        },
+        {
+            key: 'indl',
+            label: 'Industrial',
+            areaKeys: ['area_indl', 'area_ind', 'area_industrial'],
+            unitKeys: ['unit_value_indl'],
+            assessmentLevel: 0.45
+        },
+        {
+            key: 'rrw',
+            label: 'RRW',
+            areaKeys: ['area_rrw'],
+            unitKeys: ['unit_value_rrw'],
+            assessmentLevel: getLotNumberProp(properties, ['assessment_rrw', 'assessment_level_rrw']) || 0
+        },
+        {
+            key: 'exempt',
+            label: 'Exempt',
+            areaKeys: ['area_exempt'],
+            unitKeys: [],
+            assessmentLevel: 0
+        }
+    ];
+
+    const genericArea = getLotNumberProp(properties, ['area', 'land_area', 'lot_area']);
+    const genericUnit = getLotNumberProp(properties, ['unit_value', 'unit_value_sqm', 'unit_val', 'unitvalue', 'unit_value_sq_m', 'unit_value_sq_m.']);
+    const landUse = String(
+        properties.land_use ??
+        properties.type_of_land_use ??
+        properties.landuse ??
+        properties.classification ??
+        ''
+    ).toLowerCase();
+
+    let totalClassArea = 0;
+    const perClass = classes.map(cls => {
+        const area = getLotNumberProp(properties, cls.areaKeys);
+        totalClassArea += area;
+        return { ...cls, area };
+    });
+
+    if (totalClassArea === 0 && genericArea > 0) {
+        const match = perClass.find(cls => landUse.includes(cls.key) || landUse.includes(cls.label.toLowerCase()));
+        if (match) {
+            match.area = genericArea;
+            totalClassArea = genericArea;
+        }
+    }
+
+    const baseClasses = perClass.filter(cls => cls.area > 0 && !['rrw', 'exempt'].includes(cls.key));
+    const primaryClass = baseClasses.reduce((acc, cls) => {
+        if (!acc) return cls;
+        return cls.area > acc.area ? cls : acc;
+    }, null);
+    const rrwAssessmentLevel = getLotNumberProp(
+        properties,
+        primaryClass ? [`assessment_level_${primaryClass.key}`, 'assessment_rrw', 'assessment_level_rrw'] : ['assessment_rrw', 'assessment_level_rrw']
+    ) || (primaryClass ? primaryClass.assessmentLevel : 0);
+
+    const computed = perClass
+        .map(cls => {
+            if (cls.area <= 0) return null;
+            let unitValue = getLotNumberProp(properties, cls.unitKeys || []);
+            if (cls.key === 'rrw' && unitValue <= 0 && primaryClass) {
+                unitValue = getLotNumberProp(properties, [`unit_value_${primaryClass.key}`, 'unit_value']);
+            }
+            if (unitValue <= 0 && genericUnit > 0) unitValue = genericUnit;
+            const adjustment = cls.key === 'rrw' ? 0.20 : baseAdjustment;
+            const marketValue = cls.area * unitValue * adjustment;
+            const assessmentLevel = cls.key === 'rrw' ? rrwAssessmentLevel : cls.assessmentLevel;
+            const assessedValue = marketValue * assessmentLevel;
+            return {
+                key: cls.key,
+                label: cls.label,
+                area: cls.area,
+                unitValue,
+                adjustment,
+                assessmentLevel,
+                marketValue,
+                assessedValue
+            };
+        })
+        .filter(Boolean);
+
+    const totalArea = computed.reduce((sum, c) => sum + c.area, 0);
+    const totalMarketValue = computed.reduce((sum, c) => sum + c.marketValue, 0);
+    const totalAssessedValue = computed.reduce((sum, c) => sum + c.assessedValue, 0);
+    const taxRate = 0.02;
+
+    return {
+        perClass: computed,
+        totalArea,
+        totalMarketValue,
+        totalAssessedValue,
+        taxRate,
+        rpt: totalAssessedValue * taxRate,
+        baseAdjustment
+    };
+}
 
 export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     // Navigation State
@@ -180,23 +323,41 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     const applyLocalAdjustment = (pin, rate) => {
         const normPin = normalizePin(pin);
         if (!normPin) return;
+
+        const cacheKey = selectedBarangay && selectedSection !== null
+            ? `${selectedBarangay}-${selectedSection}`
+            : null;
+
         setLotGeoData(prev => {
             if (!prev?.features) return prev;
             let matched = null;
             const updated = prev.features.map(f => {
                 const fPin = normalizePin(f?.properties?.pin || f?.properties?.PIN);
                 if (fPin !== normPin) return f;
+                const computed = computeLotTaxFromProperties(f.properties, rate);
                 const nextFeature = {
                     ...f,
-                    properties: { ...f.properties, adjustment_rate: rate }
+                    properties: {
+                        ...f.properties,
+                        adjustment_rate: rate,
+                        ...(computed ? {
+                            market_value: computed.totalMarketValue,
+                            assessed_value: computed.totalAssessedValue,
+                            rpt: computed.rpt,
+                        } : {}),
+                    }
                 };
                 matched = nextFeature;
                 return nextFeature;
             });
+            const nextGeoData = { ...prev, features: updated };
+            if (cacheKey) {
+                lotDataCache.current[cacheKey] = nextGeoData;
+            }
             if (matched) {
                 setSelectedLotPin(normPin);
             }
-            return { ...prev, features: updated };
+            return nextGeoData;
         });
     };
 
@@ -227,6 +388,11 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
 
     const handleMapFeatureSelect = (feature) => {
         if (!feature || !feature.properties) return;
+
+        if (feature.properties.ADM4_EN === 'Poblacion' && !selectedBarangay) {
+            setError('Select Poblacion 1, 2, 3, or 4 from the barangay list to open its PIM data.');
+            return;
+        }
 
         if (feature.properties.ADM4_EN && !selectedBarangay) {
             setSelectedBarangay(feature.properties.ADM4_EN);
@@ -307,124 +473,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange }) {
     };
 
     const computedTax = useMemo(() => {
-        if (!selectedLot || !selectedLot.properties) return null;
-        const p = selectedLot.properties;
-
-        const getNumberProp = (keys) => {
-            for (const key of keys) {
-                const val = lotProp(key);
-                if (val !== undefined && val !== null && val !== '') {
-                    const num = Number(val);
-                    if (!Number.isNaN(num)) return num;
-                }
-            }
-            return 0;
-        };
-
-        const baseAdjustment = (refinementLevel === 0.5 || refinementLevel === 0.75) ? refinementLevel : 0.75;
-
-        const classes = [
-            {
-                key: 'res',
-                label: 'Residential',
-                areaKeys: ['area_res', 'area_resi', 'area_residential'],
-                assessmentLevel: 0.05
-            },
-            {
-                key: 'agri',
-                label: 'Agricultural',
-                areaKeys: ['area_agri', 'area_agriculture', 'area_agricultural'],
-                assessmentLevel: 0.06
-            },
-            {
-                key: 'comml',
-                label: 'Commercial',
-                areaKeys: ['area_comml', 'area_comm', 'area_commercial'],
-                assessmentLevel: 0.25
-            },
-            {
-                key: 'indl',
-                label: 'Industrial',
-                areaKeys: ['area_indl', 'area_ind', 'area_industrial'],
-                assessmentLevel: 0.45
-            },
-            {
-                key: 'rrw',
-                label: 'RRW',
-                areaKeys: ['area_rrw'],
-                assessmentLevel: getNumberProp(['assessment_rrw', 'assessment_level_rrw']) || 0
-            },
-            {
-                key: 'exempt',
-                label: 'Exempt',
-                areaKeys: ['area_exempt'],
-                assessmentLevel: 0
-            }
-        ];
-
-        const genericArea = getNumberProp(['area', 'land_area', 'lot_area']);
-        const genericUnit = getNumberProp(['unit_value', 'unit_value_sqm', 'unit_val', 'unitvalue', 'unit_value_sq_m', 'unit_value_sq_m.']);
-        const landUse = String(lotProp('land_use') || lotProp('landuse') || lotProp('classification') || '').toLowerCase();
-
-        let totalClassArea = 0;
-        const perClass = classes.map(cls => {
-            const area = getNumberProp(cls.areaKeys);
-            totalClassArea += area;
-            return { ...cls, area };
-        });
-
-        if (totalClassArea === 0 && genericArea > 0) {
-            const match = perClass.find(cls => landUse.includes(cls.key) || landUse.includes(cls.label.toLowerCase()));
-            if (match) {
-                match.area = genericArea;
-                totalClassArea = genericArea;
-            }
-        }
-
-        const baseClasses = perClass.filter(cls => cls.area > 0 && !['rrw', 'exempt'].includes(cls.key));
-        const primaryClass = baseClasses.reduce((acc, cls) => {
-            if (!acc) return cls;
-            return cls.area > acc.area ? cls : acc;
-        }, null);
-        const rrwAssessmentLevel = primaryClass ? primaryClass.assessmentLevel : 0;
-
-        const computed = perClass
-            .map(cls => {
-                if (cls.area <= 0) return null;
-                let unitValue = getNumberProp(cls.unitKeys || []);
-                if (unitValue <= 0 && genericUnit > 0) unitValue = genericUnit;
-                const adjustment = cls.key === 'rrw' ? 0.20 : baseAdjustment;
-                const marketValue = cls.area * unitValue * adjustment;
-                const assessmentLevel = cls.key === 'rrw' ? rrwAssessmentLevel : cls.assessmentLevel;
-                const assessedValue = marketValue * assessmentLevel;
-                return {
-                    key: cls.key,
-                    label: cls.label,
-                    area: cls.area,
-                    unitValue,
-                    adjustment,
-                    assessmentLevel,
-                    marketValue,
-                    assessedValue
-                };
-            })
-            .filter(Boolean);
-
-        const totalArea = computed.reduce((sum, c) => sum + c.area, 0);
-        const totalMarketValue = computed.reduce((sum, c) => sum + c.marketValue, 0);
-        const totalAssessedValue = computed.reduce((sum, c) => sum + c.assessedValue, 0);
-        const taxRate = 0.02;
-        const rpt = totalAssessedValue * taxRate;
-
-        return {
-            perClass: computed,
-            totalArea,
-            totalMarketValue,
-            totalAssessedValue,
-            taxRate,
-            rpt,
-            baseAdjustment
-        };
+        return computeLotTaxFromProperties(selectedLot?.properties, refinementLevel);
     }, [selectedLot, refinementLevel]);
 
     const areaBreakdown = useMemo(() => {

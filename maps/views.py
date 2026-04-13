@@ -48,11 +48,7 @@ _RPT_REPORT_CACHE = {
 _RPT_REPORT_TTL_SECONDS = 600
 _RPT_REPORT_IN_PROGRESS = False
 
-_RPT_REPORT_CACHE_FILE = os.path.join(
-    os.path.dirname(__file__),
-    'static',
-    'rpt_report_cache.json'
-)
+# _RPT_REPORT_CACHE_FILE functionality migrated to DB RptReportCache model
 
 
 def api_login_required(view_func):
@@ -245,19 +241,17 @@ def dashboard_rpt_report(request):
     - RPT totals by land classification
     - Per-barangay assessment summary table
     """
-    from .pim_views import _normalise_properties, _load_smv_cache, _canonical_barangay_name as pim_canonical_barangay_name
-
     global _RPT_REPORT_IN_PROGRESS
+    force_sync = request.GET.get('sync') == '1'
 
-    # Always return disk cache immediately if it exists (fast path)
-    if os.path.exists(_RPT_REPORT_CACHE_FILE):
-        try:
-            with open(_RPT_REPORT_CACHE_FILE, 'r', encoding='utf-8') as f:
-                cached_payload = json.load(f)
-            if cached_payload:
-                return JsonResponse(cached_payload)
-        except Exception:
-            pass
+    if force_sync:
+        return JsonResponse(build_rpt_report_cache())
+
+    # Always return DB cache immediately if it exists (fast path)
+    from .models import RptReportCache
+    cache_obj = RptReportCache.objects.filter(key='dashboard_rpt').first()
+    if cache_obj and cache_obj.data:
+        return JsonResponse(cache_obj.data)
 
     # If no cache yet, return a quick placeholder and generate in background
     global _RPT_REPORT_IN_PROGRESS
@@ -265,185 +259,14 @@ def dashboard_rpt_report(request):
         _RPT_REPORT_IN_PROGRESS = True
         try:
             import threading
+
             def _build_report_async():
                 try:
-                    dashboard_rpt_report.__wrapped__(request)  # compute and cache
+                    build_rpt_report_cache()
                 finally:
                     global _RPT_REPORT_IN_PROGRESS
                     _RPT_REPORT_IN_PROGRESS = False
-            threading.Thread(target=_build_report_async, daemon=True).start()
-        except Exception:
-            _RPT_REPORT_IN_PROGRESS = False
 
-    return JsonResponse({
-        'as_of_year': timezone.now().year,
-        'rpt_by_class': [],
-        'assessment_table': { 'rows': [], 'totals': None },
-        'notes': 'Report is generating. Please refresh in a moment.',
-    })
-
-    def compute_payload():
-        # Default adjustment (no dirt-road attribute in dataset)
-        default_adjustment = 0.75
-        tax_rate = 0.02
-
-        # Serve cached result when fresh
-        now_local = timezone.now()
-        if _RPT_REPORT_CACHE['data'] and _RPT_REPORT_CACHE['ts']:
-            age = (now_local - _RPT_REPORT_CACHE['ts']).total_seconds()
-            if age < _RPT_REPORT_TTL_SECONDS:
-                return _RPT_REPORT_CACHE['data']
-
-        class_meta = {
-            'res': {'label': 'Residential', 'area_key': 'area_res', 'assessment_level': 0.05},
-            'agri': {'label': 'Agricultural', 'area_key': 'area_agri', 'assessment_level': 0.06},
-            'comml': {'label': 'Commercial', 'area_key': 'area_comml', 'assessment_level': 0.25},
-            'indl': {'label': 'Industrial', 'area_key': 'area_indl', 'assessment_level': 0.45},
-        }
-
-        # Aggregates
-        rpt_by_class = {k: 0.0 for k in class_meta.keys()}
-        barangay_rows = {}
-        adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.all()}
-
-        def safe_num(value):
-            try:
-                if value is None:
-                    return 0.0
-                return float(value)
-            except Exception:
-                return 0.0
-
-        # Iterate lots from PIM table (authoritative attributes)
-        qs = PimSection.objects.values('barangay_name', 'properties')
-        for row in qs.iterator():
-            props = _normalise_properties(row.get('properties') or {})
-            pin = props.get('pin') or props.get('PIN')
-            if not pin:
-                continue
-            pin = str(pin).strip()
-            if not pin:
-                continue
-
-            barangay = pim_canonical_barangay_name(row.get('barangay_name') or '')
-            if not barangay:
-                continue
-
-            # Prep barangay accumulator
-            if barangay not in barangay_rows:
-                barangay_rows[barangay] = {
-                    'barangay': barangay,
-                    'counts': {'agri': 0, 'res': 0, 'indl': 0, 'comml': 0},
-                    'market_value': 0.0,
-                    'assessed_value': 0.0,
-                }
-
-            # Compute per-class values for this lot
-            per_lot_market = 0.0
-            per_lot_assessed = 0.0
-
-            lot_adjustment = adj_map.get(pin, default_adjustment)
-
-            for class_key, meta in class_meta.items():
-                area = safe_num(props.get(meta['area_key']))
-                if area <= 0:
-                    continue
-                smv = _load_smv_cache(barangay, class_key)
-                unit_val = safe_num(smv.get(pin, {}).get('unit_value'))
-                if unit_val <= 0:
-                    continue
-                market = area * unit_val * lot_adjustment
-                assessed = market * meta['assessment_level']
-
-                per_lot_market += market
-                per_lot_assessed += assessed
-
-                rpt_by_class[class_key] += assessed * tax_rate
-                barangay_rows[barangay]['counts'][class_key] += 1
-
-            if per_lot_market > 0 or per_lot_assessed > 0:
-                barangay_rows[barangay]['market_value'] += per_lot_market
-                barangay_rows[barangay]['assessed_value'] += per_lot_assessed
-
-        # Build response
-        order = ['indl', 'comml', 'res', 'agri']
-        rpt_list = [
-            {
-                'key': key,
-                'label': class_meta[key]['label'].upper(),
-                'amount': round(rpt_by_class[key], 2),
-            }
-            for key in order
-        ]
-
-        rows = sorted(barangay_rows.values(), key=lambda r: r['barangay'])
-        totals = {
-            'barangay': 'Total',
-            'counts': {
-                'agri': sum(r['counts']['agri'] for r in rows),
-                'res': sum(r['counts']['res'] for r in rows),
-                'indl': sum(r['counts']['indl'] for r in rows),
-                'comml': sum(r['counts']['comml'] for r in rows),
-            },
-            'market_value': round(sum(r['market_value'] for r in rows), 2),
-            'assessed_value': round(sum(r['assessed_value'] for r in rows), 2),
-        }
-
-        payload_local = {
-            'as_of_year': timezone.now().year,
-            'rpt_by_class': rpt_list,
-            'assessment_table': {
-                'rows': rows,
-                'totals': totals,
-            },
-            'notes': 'Only parcels with complete data are included.',
-        }
-
-        _RPT_REPORT_CACHE['data'] = payload_local
-        _RPT_REPORT_CACHE['ts'] = now_local
-        try:
-            os.makedirs(os.path.dirname(_RPT_REPORT_CACHE_FILE), exist_ok=True)
-            with open(_RPT_REPORT_CACHE_FILE, 'w', encoding='utf-8') as f:
-                json.dump(payload_local, f)
-        except Exception:
-            pass
-
-        return payload_local
-
-    def build_rpt_report_payload():
-        return compute_payload()
-
-    if request.GET.get('sync') == '1':
-        payload = build_rpt_report_payload()
-        return JsonResponse(payload)
-
-    if not _RPT_REPORT_IN_PROGRESS:
-        _RPT_REPORT_IN_PROGRESS = True
-        try:
-            import threading
-            def _build_report_async():
-                try:
-                    build_rpt_report_payload()
-                except Exception as e:
-                    try:
-                        error_payload = {
-                            'as_of_year': timezone.now().year,
-                            'rpt_by_class': [],
-                            'assessment_table': { 'rows': [], 'totals': None },
-                            'notes': 'Report generation failed. Please refresh or try sync mode.',
-                            'status': 'error',
-                            'error': str(e),
-                        }
-                        os.makedirs(os.path.dirname(_RPT_REPORT_CACHE_FILE), exist_ok=True)
-                        with open(_RPT_REPORT_CACHE_FILE, 'w', encoding='utf-8') as f:
-                            json.dump(error_payload, f)
-                        _RPT_REPORT_CACHE['data'] = error_payload
-                        _RPT_REPORT_CACHE['ts'] = timezone.now()
-                    except Exception:
-                        pass
-                finally:
-                    global _RPT_REPORT_IN_PROGRESS
-                    _RPT_REPORT_IN_PROGRESS = False
             threading.Thread(target=_build_report_async, daemon=True).start()
         except Exception:
             _RPT_REPORT_IN_PROGRESS = False
@@ -461,12 +284,10 @@ def build_rpt_report_cache():
     """
     Precompute and persist the RPT report cache to disk.
     """
-    from .pim_views import _normalise_properties, _load_smv_cache, _canonical_barangay_name as pim_canonical_barangay_name
+    from .pim_views import _prepare_lot_properties, _compute_lot_tax_summary, _canonical_barangay_name as pim_canonical_barangay_name
 
     # Reuse the report builder logic from dashboard_rpt_report
     default_adjustment = 0.75
-    tax_rate = 0.02
-
     class_meta = {
         'res': {'label': 'Residential', 'area_key': 'area_res', 'assessment_level': 0.05},
         'agri': {'label': 'Agricultural', 'area_key': 'area_agri', 'assessment_level': 0.06},
@@ -476,27 +297,19 @@ def build_rpt_report_cache():
 
     rpt_by_class = {k: 0.0 for k in class_meta.keys()}
     barangay_rows = {}
-
-    def safe_num(value):
-        try:
-            if value is None:
-                return 0.0
-            return float(value)
-        except Exception:
-            return 0.0
+    adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.all()}
 
     qs = PimSection.objects.values('barangay_name', 'properties')
     for row in qs.iterator():
-        props = _normalise_properties(row.get('properties') or {})
+        barangay = pim_canonical_barangay_name(row.get('barangay_name') or '')
+        if not barangay:
+            continue
+        props = _prepare_lot_properties(row.get('properties') or {}, barangay)
         pin = props.get('pin') or props.get('PIN')
         if not pin:
             continue
         pin = str(pin).strip()
         if not pin:
-            continue
-
-        barangay = pim_canonical_barangay_name(row.get('barangay_name') or '')
-        if not barangay:
             continue
 
         if barangay not in barangay_rows:
@@ -507,30 +320,17 @@ def build_rpt_report_cache():
                 'assessed_value': 0.0,
             }
 
-        per_lot_market = 0.0
-        per_lot_assessed = 0.0
+        lot_adjustment = adj_map.get(pin, default_adjustment)
+        tax_summary = _compute_lot_tax_summary(props, lot_adjustment)
 
-        for class_key, meta in class_meta.items():
-            area = safe_num(props.get(meta['area_key']))
-            if area <= 0:
-                continue
-            smv = _load_smv_cache(barangay, class_key)
-            unit_val = safe_num(smv.get(pin, {}).get('unit_value'))
-            if unit_val <= 0:
-                continue
-
-            market = area * unit_val * default_adjustment
-            assessed = market * meta['assessment_level']
-
-            per_lot_market += market
-            per_lot_assessed += assessed
-
-            rpt_by_class[class_key] += assessed * tax_rate
+        for class_key in tax_summary['active_base_classes']:
             barangay_rows[barangay]['counts'][class_key] += 1
+        for class_key in class_meta.keys():
+            rpt_by_class[class_key] += tax_summary['rpt_by_class'][class_key]
 
-        if per_lot_market > 0 or per_lot_assessed > 0:
-            barangay_rows[barangay]['market_value'] += per_lot_market
-            barangay_rows[barangay]['assessed_value'] += per_lot_assessed
+        if tax_summary['market_value'] > 0 or tax_summary['assessed_value'] > 0:
+            barangay_rows[barangay]['market_value'] += tax_summary['market_value']
+            barangay_rows[barangay]['assessed_value'] += tax_summary['assessed_value']
 
     order = ['indl', 'comml', 'res', 'agri']
     rpt_list = [
@@ -568,9 +368,8 @@ def build_rpt_report_cache():
     _RPT_REPORT_CACHE['data'] = payload
     _RPT_REPORT_CACHE['ts'] = timezone.now()
     try:
-        os.makedirs(os.path.dirname(_RPT_REPORT_CACHE_FILE), exist_ok=True)
-        with open(_RPT_REPORT_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(payload, f)
+        from .models import RptReportCache
+        RptReportCache.objects.update_or_create(key='dashboard_rpt', defaults={'data': payload})
     except Exception:
         pass
 

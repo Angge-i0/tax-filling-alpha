@@ -8,26 +8,48 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 export default function MainDashboard() {
   const [report, setReport] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [reportDirty, setReportDirty] = useState(false);
+
+  const loadReport = (forceSync = false) => {
+    const url = forceSync ? '/api/dashboard/rpt-report/?sync=1' : '/api/dashboard/rpt-report/';
+    return apiGet(url).then(r => r.json()).then(data => {
+      setReport(data);
+      return data;
+    });
+  };
 
   useEffect(() => {
-    apiGet('/api/dashboard/rpt-report/').then(r => r.json()).then(setReport);
+    const dirty = typeof window !== 'undefined' ? !!localStorage.getItem('rpt_report_dirty') : false;
+    setReportDirty(dirty);
+    loadReport(dirty)
+      .finally(() => {
+        if (dirty) {
+          try { localStorage.removeItem('rpt_report_dirty'); } catch {}
+          setReportDirty(false);
+        }
+      });
   }, []);
 
   const refreshReport = () => {
     setIsRefreshing(true);
-    apiGet('/api/dashboard/rpt-report/?sync=1')
-      .then(r => r.json())
-      .then(setReport)
-      .finally(() => setIsRefreshing(false));
-    try { localStorage.removeItem('rpt_report_dirty'); } catch {}
+    loadReport(true)
+      .finally(() => {
+        setIsRefreshing(false);
+        try { localStorage.removeItem('rpt_report_dirty'); } catch {}
+        setReportDirty(false);
+      });
   };
 
   useEffect(() => {
     const timer = setInterval(() => {
-      const dirty = localStorage.getItem('rpt_report_dirty');
+      const dirty = typeof window !== 'undefined' ? localStorage.getItem('rpt_report_dirty') : null;
       if (dirty) {
-        apiGet('/api/dashboard/rpt-report/').then(r => r.json()).then(setReport);
-        localStorage.removeItem('rpt_report_dirty');
+        setReportDirty(true);
+        loadReport(true)
+          .finally(() => {
+            try { localStorage.removeItem('rpt_report_dirty'); } catch {}
+            setReportDirty(false);
+          });
       }
     }, 1500);
     return () => clearInterval(timer);
@@ -82,8 +104,7 @@ export default function MainDashboard() {
       </div>
 
       {(() => {
-        const dirty = typeof window !== 'undefined' ? localStorage.getItem('rpt_report_dirty') : null;
-        if (!dirty) return null;
+        if (!reportDirty) return null;
         return (
           <div style={{ margin: '0.75rem auto 1rem', maxWidth: '40rem', textAlign: 'center' }}>
             <div style={{ fontSize: '0.85rem', color: '#b45309', marginBottom: '0.5rem' }}>

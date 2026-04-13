@@ -5,12 +5,113 @@ param(
     [string]$DbUser = "taxuser",
     [string]$DbPassword = "pops1245",
     [int]$DbPort = 5433,
-    [string]$OgrBin = "D:\osgeo4w\bin",
-    [string]$ProjData = "D:\osgeo4w\share\proj",
-    [string]$GdalData = "D:\osgeo4w\share\gdal"
+    [string]$OSGeo4WRoot = $env:OSGEO4W_ROOT,
+    [string]$OgrBin = $env:OSGEO4W_BIN,
+    [string]$ProjData = $env:OSGEO4W_PROJ,
+    [string]$GdalData = $env:OSGEO4W_GDAL
 )
 
 $ErrorActionPreference = "Stop"
+
+function Resolve-ExistingPath([string]$value) {
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    if (-not (Test-Path -LiteralPath $value)) {
+        return $null
+    }
+
+    return (Resolve-Path -LiteralPath $value).Path
+}
+
+function Get-Osgeo4WCandidateRoots {
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $results = [System.Collections.Generic.List[string]]::new()
+
+    function Add-Candidate([string]$value) {
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            return
+        }
+
+        $resolved = Resolve-ExistingPath $value
+        if ($resolved -and $seen.Add($resolved)) {
+            $results.Add($resolved)
+        }
+    }
+
+    Add-Candidate $OSGeo4WRoot
+
+    $resolvedOgrBin = Resolve-ExistingPath $OgrBin
+    if ($resolvedOgrBin) {
+        Add-Candidate (Split-Path -Parent $resolvedOgrBin)
+    }
+
+    foreach ($envName in @("OSGEO4W_PROJ", "PROJ_LIB", "PROJ_DATA")) {
+        $resolvedProj = Resolve-ExistingPath ([Environment]::GetEnvironmentVariable($envName))
+        if ($resolvedProj) {
+            Add-Candidate (Split-Path -Parent (Split-Path -Parent $resolvedProj))
+            break
+        }
+    }
+
+    $gdalDataEnv = if ($env:OSGEO4W_GDAL) { $env:OSGEO4W_GDAL } else { $env:GDAL_DATA }
+    $resolvedGdalData = Resolve-ExistingPath $gdalDataEnv
+    if ($resolvedGdalData) {
+        Add-Candidate (Split-Path -Parent (Split-Path -Parent $resolvedGdalData))
+    }
+
+    $ogrCommand = Get-Command ogr2ogr -ErrorAction SilentlyContinue
+    if ($ogrCommand -and $ogrCommand.Source) {
+        Add-Candidate (Split-Path -Parent (Split-Path -Parent $ogrCommand.Source))
+    }
+
+    $folderNames = @("OSGeo4W", "OSGeo4W64", "osgeo4w", "osgeo4w64")
+    Get-PSDrive -PSProvider FileSystem | ForEach-Object {
+        foreach ($folderName in $folderNames) {
+            Add-Candidate (Join-Path $_.Root $folderName)
+        }
+    }
+
+    return $results
+}
+
+function Resolve-Osgeo4WConfig {
+    $resolvedOgrBin = Resolve-ExistingPath $OgrBin
+    $projDataValue = if ($ProjData) { $ProjData } elseif ($env:PROJ_DATA) { $env:PROJ_DATA } else { $env:PROJ_LIB }
+    $gdalDataValue = if ($GdalData) { $GdalData } else { $env:GDAL_DATA }
+    $resolvedProjData = Resolve-ExistingPath $projDataValue
+    $resolvedGdalData = Resolve-ExistingPath $gdalDataValue
+
+    foreach ($root in Get-Osgeo4WCandidateRoots) {
+        $candidateOgrBin = $resolvedOgrBin
+        if (-not $candidateOgrBin) {
+            $candidateOgrBin = Resolve-ExistingPath (Join-Path $root "bin")
+        }
+
+        $candidateProjData = $resolvedProjData
+        if (-not $candidateProjData) {
+            $candidateProjData = Resolve-ExistingPath (Join-Path $root "share\proj")
+        }
+
+        $candidateGdalData = $resolvedGdalData
+        if (-not $candidateGdalData) {
+            $candidateGdalData = Resolve-ExistingPath (Join-Path $root "share\gdal")
+        }
+
+        $ogrExe = if ($candidateOgrBin) { Join-Path $candidateOgrBin "ogr2ogr.exe" } else { $null }
+        if ($candidateOgrBin -and $candidateProjData -and $candidateGdalData -and $ogrExe -and (Test-Path -LiteralPath $ogrExe)) {
+            return @{
+                Root = $root
+                OgrBin = $candidateOgrBin
+                ProjData = $candidateProjData
+                GdalData = $candidateGdalData
+            }
+        }
+    }
+
+    throw "Could not locate OSGeo4W automatically. Set OSGEO4W_ROOT, pass -OSGeo4WRoot, or add ogr2ogr.exe to PATH."
+}
 
 function Escape-SqlLiteral([string]$value) {
     if ($null -eq $value) { return "" }
@@ -97,6 +198,21 @@ function Import-OneFile([string]$filePath) {
         throw "ogr2ogr failed for file: $filePath"
     }
 }
+
+$osgeo = Resolve-Osgeo4WConfig
+$OgrBin = $osgeo.OgrBin
+$ProjData = $osgeo.ProjData
+$GdalData = $osgeo.GdalData
+
+$pathEntries = @($env:PATH -split ';' | Where-Object { $_ })
+if ($pathEntries -notcontains $OgrBin) {
+    $env:PATH = "$OgrBin;$env:PATH"
+}
+$env:PROJ_LIB = $ProjData
+$env:PROJ_DATA = $ProjData
+$env:GDAL_DATA = $GdalData
+
+Write-Host "Using OSGeo4W root: $($osgeo.Root)"
 
 Write-Host "Applying schema..."
 $schemaPath = Join-Path $ProjectRoot "scripts\postgis_schema.sql"
