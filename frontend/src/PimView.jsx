@@ -31,6 +31,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     const [sectionList, setSectionList] = useState([]);
     const [error, setError] = useState(null);
     const [showEnlargementMap, setShowEnlargementMap] = useState(false);
+    const [searchError, setSearchError] = useState(null);
     const [refinementLevel, setRefinementLevel] = useState(0.75);
     const [adjustmentStatus, setAdjustmentStatus] = useState(null);
     const [showBarangayPanel, setShowBarangayPanel] = useState(true);
@@ -178,6 +179,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     useEffect(() => {
         const brgyQuery = (searchBrgy || '').trim();
         const pinQuery = (searchPin || '').trim();
+        setSearchError(null);
 
         // If Barangay is cleared, reset navigation state
         if (!brgyQuery) {
@@ -210,7 +212,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 setSelectedLotPin(data.pin || pinQuery);
                             }
                         })
-                        .catch(() => {
+                        .catch((err) => {
+                            if (pinQuery) {
+                                setSearchError(`Data not found. Lot "No. ${pinQuery}" not existing`);
+                            }
                             // If PIN search fails, but we've changed barangay, switch to that barangay overview
                             if (bMatch.name !== selectedBarangay) {
                                 setSelectedBarangay(bMatch.name);
@@ -242,6 +247,15 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         if (!selectedLotPin || !lotGeoData?.features?.length) return null;
         return lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin) || null;
     }, [selectedLotPin, lotGeoData]);
+
+    const sortedLotFeatures = useMemo(() => {
+        if (!lotGeoData?.features) return [];
+        return [...lotGeoData.features].sort((a, b) => {
+            const valA = String(a.properties.pin || '').split('-').pop() || '';
+            const valB = String(b.properties.pin || '').split('-').pop() || '';
+            return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+        });
+    }, [lotGeoData]);
 
     useEffect(() => {
         if (!selectedLot?.properties) return;
@@ -657,6 +671,12 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                 transform: showDetailsPanel ? 'translateX(0)' : 'translateX(110%)',
                 transition: 'transform 0.25s ease'
             }}>
+                {searchError && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                        <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.85rem' }}>⚠ {searchError}</div>
+                        <button onClick={() => setSearchError(null)} style={{ background: 'none', border: 'none', color: '#991b1b', cursor: 'pointer', fontSize: '1.2rem', padding: '0 0.2rem' }}>×</button>
+                    </div>
+                )}
 
                 {selectedSection !== null ? (
                     <>
@@ -677,14 +697,14 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 <div className="lot-details-grid">
                                     <div className="lot-detail-field full">
                                         <label>Parcel Identification Number</label>
-                                        <select value={selectedLot ? lotGeoData.features.indexOf(selectedLot) : ''} onChange={(e) => {
-                                            const feature = lotGeoData.features[e.target.value];
-                                            const pin = getFeaturePin(feature);
-                                            if (pin) setSelectedLotPin(pin);
+                                        <select value={selectedLotPin || ''} onChange={(e) => {
+                                            setSelectedLotPin(e.target.value);
                                         }} className="lot-select">
-                                            {lotGeoData.features.map((f, idx) => (
-                                                <option key={idx} value={idx}>{String(f.properties.pin || '').split('-').pop() || (idx + 1)}</option>
-                                            ))}
+                                            {sortedLotFeatures.map((f, idx) => {
+                                                const pin = getFeaturePin(f);
+                                                const label = String(f.properties.pin || '').split('-').pop() || (idx + 1);
+                                                return <option key={pin} value={pin}>{label}</option>
+                                            })}
                                         </select>
                                     </div>
                                     <div className="lot-detail-field full">
@@ -821,7 +841,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                             </button>
                                         ))}
                                     </div>
-                                ) : <div style={{ color: '#64748b', fontStyle: 'italic' }}>No lots available</div>)}
+                                ) : <div style={{ color: '#ef4444', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>⚠ No lots available</div>)}
                             </div>
                         )}
                     </>
@@ -917,7 +937,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                         </div>
                         <div className="pim-attr-list">
                             {lotAttributeEntries.length === 0 && (
-                                <div className="pim-attr-empty">No attributes available.</div>
+                                <div className="pim-attr-empty" style={{ color: '#ef4444' }}>⚠ No attributes available.</div>
                             )}
                             {lotAttributeEntries.map(([key, value]) => {
                                 let displayValue = value;
