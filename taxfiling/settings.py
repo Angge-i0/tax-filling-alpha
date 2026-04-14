@@ -6,20 +6,53 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # GeoDjango (PostGIS backend) requires native GDAL/GEOS DLLs on Windows.
-# If you installed OSGeo4W/QGIS somewhere else (a common "wrong install path"
-# issue), update these two paths to point at the actual DLLs on your machine.
-GEOS_LIBRARY_PATH = r"A:\QGIS\bin\geos_c.dll"
-GDAL_LIBRARY_PATH = r"A:\QGIS\bin\gdal312.dll"
-OSGEO4W_BIN = r"A:\QGIS\bin"
-OSGEO4W_PROJ = r"A:\QGIS\share\proj"
-OSGEO4W_GDAL = r"A:\QGIS\apps\gdal\share\gdal"
+if os.name == "nt":
+    # Potential installation paths for QGIS or OSGeo4W
+    possible_roots = [
+        r"C:\OSGeo4W",
+        r"C:\OSGeo4W64",
+        r"D:\OSGeo4W",
+        r"D:\OSGeo4W64",
+    ]
+    
+    # Check Program Files for QGIS installations
+    for pf in [os.environ.get("ProgramFiles", "C:\\Program Files"), os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")]:
+        if os.path.exists(pf):
+            for d in os.listdir(pf):
+                if d.startswith("QGIS"):
+                    possible_roots.append(os.path.join(pf, d))
 
-# Force GeoDjango/GDAL to use OSGeo4W data files (avoid old PostGIS PROJ db).
-os.environ["PROJ_LIB"] = OSGEO4W_PROJ
-os.environ["PROJ_DATA"] = OSGEO4W_PROJ
-os.environ["GDAL_DATA"] = OSGEO4W_GDAL
-if OSGEO4W_BIN not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = OSGEO4W_BIN + os.pathsep + os.environ.get("PATH", "")
+    OSGEO4W_ROOT = None
+    for root in possible_roots:
+        if os.path.exists(os.path.join(root, "bin", "geos_c.dll")):
+            OSGEO4W_ROOT = root
+            break
+            
+    if OSGEO4W_ROOT:
+        OSGEO4W_BIN = os.path.join(OSGEO4W_ROOT, "bin")
+        OSGEO4W_PROJ = os.path.join(OSGEO4W_ROOT, "share", "proj")
+        OSGEO4W_GDAL = os.path.join(OSGEO4W_ROOT, "apps", "gdal", "share", "gdal")
+
+        GEOS_LIBRARY_PATH = os.path.join(OSGEO4W_BIN, "geos_c.dll")
+        
+        # GDAL DLL name can vary (e.g., gdal312.dll, gdal304.dll)
+        import glob
+        gdal_dlls = glob.glob(os.path.join(OSGEO4W_BIN, "gdal*.dll"))
+        if gdal_dlls:
+            GDAL_LIBRARY_PATH = gdal_dlls[0]
+        else:
+            GDAL_LIBRARY_PATH = os.path.join(OSGEO4W_BIN, "gdal312.dll")
+
+        os.environ["PROJ_LIB"] = OSGEO4W_PROJ
+        os.environ["PROJ_DATA"] = OSGEO4W_PROJ
+        os.environ["GDAL_DATA"] = OSGEO4W_GDAL
+        
+        if OSGEO4W_BIN not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = OSGEO4W_BIN + os.pathsep + os.environ.get("PATH", "")
+    else:
+        # If not found, you may need to install QGIS/OSGeo4W or set the paths manually.
+        pass
+
 
 
 # Quick-start development settings - unsuitable for production
