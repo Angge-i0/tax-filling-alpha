@@ -172,6 +172,63 @@ def cad_geojson_data(request):
         return JsonResponse({'error': f'CAD processing failed: {str(e)}'}, status=500)
 
 
+@api_login_required
+def dashboard_lots_geojson(request):
+    """
+    Serves lot-level geometry and land-use classification for the dashboard.
+    If a lot has an enlargement, we prefer the attributes from the enlargement.
+    """
+    try:
+        from .pim_views import _normalise_properties, _has_enlargement_marker
+        from .models import PimSection, PimEnlargement
+        
+        # Load all lots
+        lots = PimSection.objects.filter(geom__intersects=SAN_PASCUAL_BBOX).only('properties', 'geom', 'barangay_name', 'section_number')
+        
+        # Pre-fetch enlargements attributes by PIN to override if needed
+        # This is expensive but necessary if attributes differ
+        enlargements = PimEnlargement.objects.filter(geom__intersects=SAN_PASCUAL_BBOX).only('properties')
+        enlargement_map = {}
+        for en in enlargements.iterator():
+            p = en.properties or {}
+            pin = p.get('pin') or p.get('PIN')
+            if pin:
+                enlargement_map[str(pin).strip()] = p
+
+        features = []
+        for lot in lots.iterator():
+            raw_props = lot.properties or {}
+            pin = str(raw_props.get('pin') or raw_props.get('PIN') or '').strip()
+            
+            # If lot has enlargement, use those properties
+            if pin and pin in enlargement_map:
+                raw_props = enlargement_map[pin]
+            
+            props = _normalise_properties(raw_props)
+
+            cleaned_props = {
+                'pin': props.get('pin') or props.get('PIN'),
+                'area_agri': props.get('area_agri'),
+                'area_comml': props.get('area_comml'),
+                'area_indl': props.get('area_indl'),
+                'area_res': props.get('area_res'),
+                'area_exempt': props.get('area_exempt'),
+                'area_rrw': props.get('area_rrw'),
+                'has_enlargement': _has_enlargement_marker(raw_props)
+            }
+            features.append({
+                'type': 'Feature',
+                'properties': cleaned_props,
+                'geometry': json.loads(lot.geom.geojson),
+            })
+
+        return JsonResponse({'type': 'FeatureCollection', 'features': features})
+    except Exception as e:
+        return JsonResponse({'error': f'Failed to load lot geometries: {str(e)}'}, status=500)
+
+
+
+
 # ── Dashboard API Views ────────────────────────────────────────────────────
 
 
@@ -260,12 +317,12 @@ def dashboard_rpt_report(request):
             pass
 
     # If no cache yet, return a quick placeholder and generate in background
-    global _RPT_REPORT_IN_PROGRESS
     if not _RPT_REPORT_IN_PROGRESS:
         _RPT_REPORT_IN_PROGRESS = True
         try:
             import threading
             def _build_report_async():
+
                 try:
                     dashboard_rpt_report.__wrapped__(request)  # compute and cache
                 finally:
@@ -646,4 +703,30 @@ def section_lots(request, section_id):
         'section_number': section.number,
         'lots': lots,
     })
+
+
+@api_login_required
+@require_http_methods(["GET"])
+def lot_details_by_pin(request, pin):
+    """
+    Returns full normalized properties for a lot by its PIN.
+    """
+    try:
+        from .pim_views import _normalise_properties, _has_enlargement_marker
+        from django.db.models import Q
+        
+        # Search in PimSection by PIN
+        lot = PimSection.objects.filter(Q(properties__pin=pin) | Q(properties__PIN=pin)).first()
+        if not lot:
+            return JsonResponse({'error': 'Lot not found.'}, status=404)
+        
+        props = _normalise_properties(lot.properties)
+        props['barangay'] = lot.barangay_name
+        props['section_number'] = lot.section_number
+        props['has_enlargement'] = _has_enlargement_marker(lot.properties)
+        
+        return JsonResponse(props)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 

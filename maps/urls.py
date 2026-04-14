@@ -3,8 +3,10 @@ from .views import (
     geojson_data, cad_geojson_data, dashboard_stats, dashboard_landuse,
     dashboard_issues, mark_issue_solved, barangay_list,
     barangay_sections, section_lots,
-    dashboard_rpt_report,
+    dashboard_rpt_report, dashboard_lots_geojson, lot_details_by_pin,
 )
+
+
 from .pim_views import (
     pim_barangay_list, pim_barangay_geojson, pim_section_list,
     pim_section_lots_geojson, pim_enlargement_geojson, pim_lot_adjustment,
@@ -19,6 +21,10 @@ urlpatterns = [
     path('api/dashboard/stats/', dashboard_stats, name='dashboard_stats'),
     path('api/dashboard/landuse/', dashboard_landuse, name='dashboard_landuse'),
     path('api/dashboard/rpt-report/', dashboard_rpt_report, name='dashboard_rpt_report'),
+    path('api/dashboard/lots-geojson/', dashboard_lots_geojson, name='dashboard_lots_geojson'),
+    path('api/pim/lots/<str:pin>/details/', lot_details_by_pin, name='lot_details_by_pin'),
+
+
     path('api/dashboard/issues/', dashboard_issues, name='dashboard_issues'),
     path('api/dashboard/issues/<int:issue_id>/solve/', mark_issue_solved, name='mark_issue_solved'),
     path('api/barangays/', barangay_list, name='barangay_list'),
