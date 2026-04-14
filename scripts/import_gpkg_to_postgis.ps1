@@ -5,10 +5,61 @@ param(
     [string]$DbUser = "taxuser",
     [string]$DbPassword = "pops1245",
     [int]$DbPort = 5433,
-    [string]$OgrBin = "D:\osgeo4w\bin",
-    [string]$ProjData = "D:\osgeo4w\share\proj",
-    [string]$GdalData = "D:\osgeo4w\share\gdal"
+    [string]$OgrBin = $null,
+    [string]$ProjData = $null,
+    [string]$GdalData = $null
 )
+
+# --- Dynamic Discovery of OSGeo4W/QGIS ---
+if (-not $OgrBin) {
+    if ($env:OSGEO4W_ROOT -and (Test-Path $env:OSGEO4W_ROOT)) {
+        $OgrBin = Join-Path $env:OSGEO4W_ROOT "bin"
+    } else {
+        $possibleRoots = New-Object System.Collections.Generic.List[string]
+        @("C:\OSGeo4W", "C:\OSGeo4W64", "D:\OSGeo4W", "D:\OSGeo4W64").ForEach({ $possibleRoots.Add($_) })
+        
+        # Add QGIS installations from Program Files
+        $progFiles = @($env:ProgramFiles, ${env:ProgramFiles(x86)})
+        foreach ($pf in $progFiles) {
+            if ($pf -and (Test-Path $pf)) {
+                try {
+                    $qgisDirs = Get-ChildItem $pf -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "QGIS*" }
+                    foreach ($dir in $qgisDirs) {
+                        $possibleRoots.Add($dir.FullName)
+                    }
+                } catch {}
+            }
+        }
+
+        foreach ($root in $possibleRoots) {
+            if ($root -and (Test-Path (Join-Path $root "bin\ogr2ogr.exe"))) {
+                $OgrBin = Join-Path $root "bin"
+                break
+            }
+        }
+    }
+}
+
+# If we found or were given OgrBin, try to set ProjData and GdalData if they are null
+if ($OgrBin) {
+    $root = (Resolve-Path (Join-Path $OgrBin "..")).Path
+    if (-not $ProjData) {
+        $ProjData = Join-Path $root "share\proj"
+    }
+    if (-not $GdalData) {
+        $GdalData = Join-Path $root "apps\gdal\share\gdal"
+    }
+    Write-Host "Using GDAL/OGR from: $OgrBin"
+}
+
+if ((-not $OgrBin) -or -not (Test-Path (Join-Path $OgrBin "ogr2ogr.exe"))) {
+    Write-Error "Could not find ogr2ogr.exe. Please install QGIS/OSGeo4W or provide the path via -OgrBin"
+    return
+}
+# ------------------------------------------
+
+# ------------------------------------------
+
 
 $ErrorActionPreference = "Stop"
 
