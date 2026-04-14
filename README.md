@@ -17,11 +17,12 @@ Install these first:
 2. Python (3.11 or 3.12 recommended)
 3. Node.js (LTS)
 4. OSGeo4W (for `ogr2ogr`, optional until you import `.gpkg`)
+   - **Note:** If you have QGIS installed, OSGeo4W is already included (usually at `A:\QGIS`).
 
 ## 2. Open the project folder
 
 ```bat
-cd D:\geodetic_thesis\tax-filling-alpha
+cd A:\OJT\tax-filling-alpha
 ```
 
 ## 3. Start database containers (PostGIS + pgAdmin)
@@ -59,7 +60,7 @@ Backend URL: `http://127.0.0.1:8000`
 Open a second terminal:
 
 ```bat
-cd D:\geodetic_thesis\tax-filling-alpha\frontend
+cd A:\OJT\tax-filling-alpha\frontend
 npm install
 npm run dev
 ```
@@ -92,17 +93,17 @@ Add server:
 If `ogr2ogr` is not recognized, run this first in the same terminal:
 
 ```bat
-set PATH=D:\osgeo4w\bin;%PATH%
-set PROJ_LIB=D:\osgeo4w\share\proj
-set PROJ_DATA=D:\osgeo4w\share\proj
-set GDAL_DATA=D:\osgeo4w\share\gdal
+set PATH=A:\QGIS\bin;%PATH%
+set PROJ_LIB=A:\QGIS\share\proj
+set PROJ_DATA=A:\QGIS\share\proj
+set GDAL_DATA=A:\QGIS\apps\gdal\share\gdal
 ogr2ogr --version
 ```
 
 Then import sample file:
 
 ```bat
-ogr2ogr --config PROJ_DATA "D:\osgeo4w\share\proj" --config GDAL_DATA "D:\osgeo4w\share\gdal" -f PostgreSQL PG:"host=localhost port=5433 dbname=taxfiling user=taxuser password=pops1245" "D:\geodetic_thesis\tax-filling-alpha\maps\static\CAD\Alalum.gpkg" -nln cad_alalum -lco GEOMETRY_NAME=geom -lco FID=id -s_srs EPSG:3123 -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI -makevalid -skipfailures
+ogr2ogr --config PROJ_DATA "A:\QGIS\share\proj" --config GDAL_DATA "A:\QGIS\apps\gdal\share\gdal" -f PostgreSQL PG:"host=localhost port=5433 dbname=taxfiling user=taxuser password=pops1245" "A:\OJT\tax-filling-alpha\maps\static\CAD\Alalum.gpkg" -nln cad_alalum -lco GEOMETRY_NAME=geom -lco FID=id -s_srs EPSG:3123 -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI -makevalid -skipfailures
 ```
 
 Verify import:
@@ -271,7 +272,7 @@ Set `PROJ_LIB`, `PROJ_DATA`, and `GDAL_DATA` to `D:\osgeo4w\share\...` (step 8).
 ### `Could not find the GDAL library`
 
 Check these exist:
-- `D:\osgeo4w\bin\gdal312.dll`
-- `D:\osgeo4w\bin\geos_c.dll`
+- `A:\QGIS\bin\gdal*.dll` (e.g. gdal312.dll)
+- `A:\QGIS\bin\geos_c.dll`
 
 Check paths in `taxfiling/settings.py`.

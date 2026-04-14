@@ -13,6 +13,7 @@ if os.name == "nt":
         r"C:\OSGeo4W64",
         r"D:\OSGeo4W",
         r"D:\OSGeo4W64",
+        r"A:\QGIS",
     ]
     
     # Check Program Files for QGIS installations

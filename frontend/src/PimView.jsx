@@ -580,11 +580,11 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 cursor: 'pointer', opacity: b.has_data ? 1 : 0.5
                             }}
                         >
-                            <div style={{ fontWeight: 'bold', color: '#1e3a5f', fontSize: '0.85rem' }}>{b.name}</div>
+                            <div style={{ fontWeight: 'bold', color: '#0f1d35', fontSize: '0.85rem', textTransform: 'uppercase' }}>{b.name}</div>
                             {b.has_data ? (
-                                <div style={{ fontSize: '0.7em', color: '#64748b' }}>{b.section_count} sections</div>
+                                <div style={{ fontSize: '0.75rem', color: '#0f172a', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>{b.section_count} sections</div>
                             ) : (
-                                <div style={{ fontSize: '0.7em', color: '#ef4444', fontStyle: 'italic' }}>⚠ Does not contain data</div>
+                                <div style={{ fontSize: '0.75rem', color: '#ef4444', fontStyle: 'italic', textTransform: 'capitalize' }}>⚠ No data</div>
                             )}
                         </button>
                     ))}
@@ -594,24 +594,24 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
             {/* CENTER: Main Map View */}
             <div className="pim-map-area" style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.625rem' }}>
-                    <button onClick={() => setShowBarangayPanel(v => !v)} style={{ background: '#a9dbfaff', color: '#000', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '700' }}>
+                    <button onClick={() => setShowBarangayPanel(v => !v)} style={{ background: '#a9dbfaff', color: '#0f172a', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>
                         {showBarangayPanel ? 'Hide Barangays' : 'Show Barangays'}
                     </button>
                     <div style={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomIn()} type="button" disabled={!mapInstance}>
+                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomIn()} type="button" style={{ textTransform: 'capitalize' }} disabled={!mapInstance}>
                             <Plus size={16} /><span>Zoom In</span>
                         </button>
-                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomOut()} type="button" disabled={!mapInstance}>
+                        <button className="pim-map-ctrl-btn" onClick={() => mapInstance?.zoomOut()} type="button" style={{ textTransform: 'capitalize' }} disabled={!mapInstance}>
                             <Minus size={16} /><span>Zoom Out</span>
                         </button>
-                        <button className="pim-map-ctrl-btn pim-map-ctrl-btn-primary" onClick={handleRecenter} type="button" disabled={!mapInstance}>
+                        <button className="pim-map-ctrl-btn pim-map-ctrl-btn-primary" onClick={handleRecenter} type="button" style={{ textTransform: 'capitalize' }} disabled={!mapInstance}>
                             <Locate size={16} /><span>Recenter</span>
                         </button>
-                        <button onClick={() => setShowDetailsPanel(v => !v)} style={{ background: '#a9dbfaff', color: '#000', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '700' }}>
+                        <button onClick={() => setShowDetailsPanel(v => !v)} style={{ background: '#a9dbfaff', color: '#0f172a', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>
                             {showDetailsPanel ? 'Hide Details' : 'Show Details'}
                         </button>
                         {showEnlargementMap && (
-                            <button onClick={() => setShowEnlargementMap(false)} style={{ background: '#a9dbfaff', color: '#000', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '700' }}>
+                            <button onClick={() => setShowEnlargementMap(false)} style={{ background: '#a9dbfaff', color: '#0f172a', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>
                                 Close Enlargement
                             </button>
                         )}
@@ -667,8 +667,8 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     <button
                                         onClick={() => setSelectedLotPin(null)}
                                         style={{
-                                            background: '#a9dbfaff', color: '#000', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
-                                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700'
+                                            background: '#a9dbfaff', color: '#0f172a', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
+                                            cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem'
                                         }}
                                     >
                                         Back to Lots
@@ -676,14 +676,14 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 </div>
                                 <div className="lot-details-grid">
                                     <div className="lot-detail-field full">
-                                        <label>LOT / PARCEL</label>
+                                        <label>Parcel Identification Number</label>
                                         <select value={selectedLot ? lotGeoData.features.indexOf(selectedLot) : ''} onChange={(e) => {
                                             const feature = lotGeoData.features[e.target.value];
                                             const pin = getFeaturePin(feature);
                                             if (pin) setSelectedLotPin(pin);
                                         }} className="lot-select">
                                             {lotGeoData.features.map((f, idx) => (
-                                                <option key={idx} value={idx}>Lot {String(f.properties.pin || '').split('-').pop() || (idx + 1)}</option>
+                                                <option key={idx} value={idx}>{String(f.properties.pin || '').split('-').pop() || (idx + 1)}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -696,13 +696,15 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                             View All Attributes
                                         </button>
                                     </div>
-                                    <div className="lot-detail-field-half"><label>BARANGAY</label><div className="lot-val-box">{selectedBarangay}</div></div>
-                                    <div className="lot-detail-field-half"><label>SECTION #</label><div className="lot-val-box">Section {selectedSection}</div></div>
-                                    <div className="lot-detail-card"><label>PIN</label><div className="lot-card-val highlight">{lotProp('pin') || 'N/A'}</div></div>
-                                    <div className="lot-detail-card"><label>ARP NO.</label><div className="lot-card-val">{lotProp('arp_no') || 'N/A'}</div></div>
+                                    <div className="lot-detail-field full"><label>BARANGAY</label><div className="lot-val-box">{selectedBarangay}</div></div>
+                                    <div className="lot-detail-field full"><label>SECTION #</label><div className="lot-val-box">Section {selectedSection}</div></div>
+                                    <div className="lot-detail-card full"><label>PIN</label><div className="lot-card-val highlight">{lotProp('pin') || 'N/A'}</div></div>
+                                    <div className="lot-detail-row" style={{ display: 'flex', gap: '0.75rem', gridColumn: 'span 1' }}>
+                                        <div className="lot-detail-card" style={{ flex: 1 }}><label>ARP NO.</label><div className="lot-card-val">{lotProp('arp_no') || 'N/A'}</div></div>
+                                        <div className="lot-detail-card" style={{ flex: 1 }}><label>PREVIOUS ARP NO.</label><div className="lot-card-val">{lotProp('prev_arp_no') || lotProp('previous_arp_no') || lotProp('previous_arp') || 'N/A'}</div></div>
+                                    </div>
                                     <div className="lot-detail-card full"><label>NAME OF OWNER</label><div className="lot-card-val">{lotProp('owner') || 'N/A'}</div></div>
-                                    <div className="lot-detail-card full"><label>ADDRESS OF OWNER</label><div className="lot-card-val small">{lotProp('address') || `Lot ${String(lotProp('pin') || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div></div>
-                                    <div className="lot-detail-card"><label>PREVIOUS ARP NO.</label><div className="lot-card-val">{lotProp('prev_arp_no') || lotProp('previous_arp_no') || lotProp('previous_arp') || 'N/A'}</div></div>
+                                    <div className="lot-detail-card full"><label>ADDRESS OF OWNER</label><div className="lot-card-val">{lotProp('address') || `Lot ${String(lotProp('pin') || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div></div>
                                     <div className="lot-detail-card full"><label>AREA (SQM)</label>
                                         <div className="lot-card-val">
                                             {areaBreakdown.length > 0 ? (
@@ -716,7 +718,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                             )}
                                         </div>
                                     </div>
-                                    <div className="lot-detail-card full specialty"><label>DIRT ROAD ACCESS (ADJUSTMENT)</label>
+                                    <div className="lot-detail-card full specialty"><label>Dirt Road Access (ADJUSTMENT)</label>
                                         <div className="adj-buttons">
                                             <button
                                                 className={refinementLevel === 0.75 ? 'active' : ''}
@@ -781,10 +783,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                         </div>
                                     )}
                                     {computedTax?.perClass?.length <= 1 && (
-                                        <div className="lot-detail-card highlight-green"><label>MARKET VALUE</label><div className="lot-card-val primary">{formatMoney(lotProp('market_value') ?? computedTax?.totalMarketValue)}</div></div>
+                                        <div className="lot-detail-card full highlight-tax"><label>MARKET VALUE</label><div className="lot-card-val primary">{formatMoney(lotProp('market_value') ?? computedTax?.totalMarketValue)}</div></div>
                                     )}
-                                    <div className="lot-detail-card"><label>TOTAL ASSESSED VALUE</label><div className="lot-card-val">{formatMoney(lotProp('assessed_value') ?? lotProp('assessment_value') ?? computedTax?.totalAssessedValue)}</div></div>
-                                    <div className="lot-detail-card highlight-navy"><label>REAL PROPERTY TAX (RPT)</label><div className="lot-card-val secondary">{formatMoney(lotProp('rpt') ?? computedTax?.rpt)}</div></div>
+                                    <div className="lot-detail-card full highlight-tax"><label>TOTAL ASSESSED VALUE</label><div className="lot-card-val secondary">{formatMoney(lotProp('assessed_value') ?? lotProp('assessment_value') ?? computedTax?.totalAssessedValue)}</div></div>
+                                    <div className="lot-detail-card full highlight-tax"><label>REAL PROPERTY TAX (RPT)</label><div className="lot-card-val secondary">{formatMoney(lotProp('rpt') ?? computedTax?.rpt)}</div></div>
                                     {selectedLot?.properties?.has_enlargement && (
                                         <div className="lot-enlargement-box">
                                             <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
@@ -801,7 +803,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                         onClick={() => { setSelectedSection(null); setLotGeoData(null); setSelectedLotPin(null); }}
                                         style={{
                                             background: '#a9dbfaff', color: '#000', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
-                                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700'
+                                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'normal'
                                         }}
                                     >
                                         Back to Sections
@@ -813,7 +815,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                             <button key={i} onClick={() => {
                                                 const pin = getFeaturePin(f);
                                                 if (pin) setSelectedLotPin(pin);
-                                            }} style={{ textAlign: 'left', padding: '0.5rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.25rem', background: '#fff', cursor: 'pointer', color: '#1e3a5f' }}>
+                                            }} style={{ textAlign: 'left', padding: '0.5rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.25rem', background: '#fff', cursor: 'pointer', color: '#1e3a5f', fontWeight: 'normal' }}>
                                                 {f.properties?.owner || `PIN: ${f.properties?.pin || 'Unknown'}`}
                                                 {f.properties?.arp_no && <div style={{ fontSize: '0.8em', color: '#64748b' }}>ARP: {f.properties.arp_no}</div>}
                                             </button>
@@ -835,8 +837,8 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     setSelectedLotPin(null);
                                 }}
                                 style={{
-                                    background: '#a9dbfaff', color: '#000', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
-                                    cursor: 'pointer', fontSize: '0.8rem', fontWeight: '700'
+                                    background: '#a9dbfaff', color: '#0f172a', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
+                                    cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem'
                                 }}
                             >
                                 Back to Map View
@@ -853,9 +855,9 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 <p style={{ fontSize: '0.85em', color: '#64748b' }}>Click a section on the map to view lots.</p>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
                                     {sectionList.map(s => (
-                                        <button key={s.number} onClick={() => setSelectedSection(s.number)} style={{ textAlign: 'left', padding: '0.625rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.375rem', background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ fontWeight: 'bold', color: '#1e3a5f' }}>Section {s.number}</span>
-                                            <span style={{ fontSize: '0.85em', color: '#64748b', background: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '0.625rem' }}>{s.lot_count} lots</span>
+                                        <button key={s.number} onClick={() => setSelectedSection(s.number)} style={{ textAlign: 'left', padding: '0.625rem', border: '0.0625rem solid #e2e8f0', borderRadius: '0.375rem', background: '#fff', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                                            <span style={{ fontWeight: 'bold', color: '#0f1d35', fontSize: '0.85rem', textTransform: 'uppercase' }}>Section {s.number}</span>
+                                            <span style={{ fontSize: '0.75rem', color: '#0f172a', background: '#f1f5f9', padding: '0.125rem 0.375rem', borderRadius: '0.625rem', textTransform: 'uppercase' }}>{s.lot_count} lots</span>
                                         </button>
                                     ))}
                                 </div>
@@ -871,27 +873,26 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
 
             <style dangerouslySetInnerHTML={{
                 __html: `
-        .lot-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding-top: 0.625rem; }
+        .lot-details-grid { display: grid; grid-template-columns: 1fr; gap: 0.75rem; padding-top: 0.625rem; }
         .lot-detail-field { display: flex; flex-direction: column; gap: 0.25rem; }
-        .lot-detail-field.full { grid-column: span 2; }
+        .lot-detail-field.full { grid-column: span 1; }
         .lot-detail-field-half { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0; }
-        .lot-detail-field label, .lot-detail-field-half label { font-size: 0.7em; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.03rem; margin-bottom: 0.125rem; }
-        .lot-val-box { background: #f8fafc; border: 0.0625rem solid #e2e8f0; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: 700; color: #0f1d35; font-size: 0.9em; width: 100%; box-sizing: border-box; }
-        .lot-select { width: 100%; padding: 0.625rem; border-radius: 0.5rem; border: 0.125rem solid #3b82f6; font-weight: 800; color: #1e3a5f; background: #fff; cursor: pointer; grid-column: span 2; }
+        .lot-detail-field label, .lot-detail-field-half label { font-size: 0.75rem; font-weight: normal; color: #0f172a; text-transform: uppercase; letter-spacing: 0.03rem; margin-bottom: 0.125rem; }
+        .lot-val-box { background: #f8fafc; border: 0.0625rem solid #e2e8f0; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-weight: bold; color: #0f1d35; font-size: 0.75rem; width: 100%; box-sizing: border-box; text-transform: uppercase; }
+        .lot-select { width: 100%; padding: 0.625rem; border-radius: 0.5rem; border: 0.125rem solid #3b82f6; font-weight: bold; color: #1e3a5f; background: #fff; cursor: pointer; grid-column: span 1; font-size: 0.75rem; text-transform: uppercase; }
         .lot-detail-card { background: #fff; border: 0.0625rem solid #f1f5f9; padding: 0.75rem; border-radius: 0.5rem; box-shadow: 0 0.0625rem 0.18rem rgba(0,0,0,0.02); display: flex; flex-direction: column; width: 100%; box-sizing: border-box; }
-        .lot-detail-card.full { grid-column: span 2; }
-        .lot-detail-card.specialty { grid-column: span 2; }
-        .lot-detail-card label { font-size: 0.65em; font-weight: 800; color: #94a3b8; display: block; margin-bottom: 0.25rem; text-transform: uppercase; }
-        .lot-card-val { font-weight: 700; color: #1e3a5f; font-size: 0.95em; word-break: break-word; }
+        .lot-detail-card.full { grid-column: span 1; }
+        .lot-detail-card.specialty { grid-column: span 1; }
+        .lot-detail-card label { font-size: 0.75rem; font-weight: normal; color: #0f172a; display: block; margin-bottom: 0.25rem; text-transform: uppercase; }
+        .lot-card-val { font-weight: 700; color: #1e3a5f; font-size: 0.85rem; word-break: break-word; }
         .lot-card-val.highlight { color: #dc2626; }
         .lot-card-val.small { font-size: 0.82em; line-height: 1.4; color: #475569; }
         .lot-card-val.landuse { color: #059669; }
-        .lot-card-val.primary { color: #dc2626; font-size: 1.3em; }
-        .lot-card-val.secondary { color: #1e3a5f; font-size: 1.15em; }
-        .highlight-green { border-left: 0.25rem solid #10b981; background: #f0fdf4 !important; }
-        .highlight-navy { border-left: 0.25rem solid #0f1d35; background: #f8fafc !important; }
+        .lot-card-val.primary { color: #dc2626; font-size: 1.15rem; }
+        .lot-card-val.secondary { color: #1e3a5f; font-size: 1.15rem; }
+        .highlight-tax { border-left: 0.25rem solid #10b981; background: #f0fdf4 !important; }
         .adj-buttons { display: flex; gap: 0.37rem; margin-top: 0.5rem; }
-        .adj-buttons button { flex: 1; padding: 0.5rem 0.25rem; font-size: 0.75em; font-weight: 800; border: 0.0625rem solid #cbd5e1; background: #fff; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s; color: #64748b; }
+        .adj-buttons button { flex: 1; padding: 0.5rem 0.25rem; font-size: 0.75rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.03rem; border: 0.0625rem solid #cbd5e1; background: #fff; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s; color: #64748b; }
         .adj-buttons button:hover { background: #c2e8ffff; border-color: #94a3b8; color: #000; }
         .adj-buttons button.active { background: #a9dbfaff; border-color: #3b82f6; color: #000; }
         .lot-enlargement-box { margin-top: 0.5rem; padding: 0.93rem; background: #fffbeb; border: 0.0625rem dashed #f59e0b; border-radius: 0.75rem; text-align: center; }
@@ -899,7 +900,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         .pim-layout button { transition: all 0.2s ease !important; }
         .pim-layout button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.03); }
         .pim-layout .section-lots-list button:hover, .pim-layout .pim-filter-panel button:hover { background: #f8fbff !important; border-color: #a9dbfaff !important; }
-        .enlarge-btn { width: 100%; background: #a9dbfaff; color: #000; border: none; padding: 0.62rem; border-radius: 0.5rem; font-weight: 700; font-size: 0.85em; cursor: pointer; }
+        .enlarge-btn { width: 100%; background: #a9dbfaff; color: #0f172a; border: none; padding: 0.62rem; border-radius: 0.5rem; font-weight: normal; text-transform: uppercase; letter-spacing: 0.03rem; font-size: 0.75rem; cursor: pointer; }
         .enlarge-btn:hover { background: #c2e8ffff; }
       `
             }} />
@@ -909,7 +910,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                     <div className="pim-attr-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="pim-attr-header">
                             <div className="pim-attr-title">Lot Attributes</div>
-                            <button className="pim-attr-close" onClick={() => setShowAttrModal(false)} style={{ background: '#a9dbfaff', color: '#000', border: 'none', padding: '0.3rem 0.7rem', borderRadius: '0.3rem', fontWeight: '700', cursor: 'pointer' }} type="button">Close</button>
+                            <button className="pim-attr-close" onClick={() => setShowAttrModal(false)} style={{ background: '#a9dbfaff', color: '#0f172a', border: 'none', padding: '0.3rem 0.7rem', borderRadius: '0.3rem', fontWeight: 'normal', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.03rem', cursor: 'pointer' }} type="button">Close</button>
                         </div>
                         <div className="pim-attr-subtitle">
                             {selectedLot?.properties?.pin ? `PIN: ${selectedLot.properties.pin}` : 'Selected Lot'}
