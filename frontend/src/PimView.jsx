@@ -14,6 +14,41 @@ const ALL_BARANGAYS = [
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
+const COMBO_MAP = {
+  'AGRI': { hex: '#22c55e', label: 'AGRICULTURE' },
+  'COMM': { hex: '#fbbf24', label: 'COMMERCIAL' },
+  'INDUSTRIAL': { hex: '#3b82f6', label: 'INDUSTRIAL' },
+  'RES': { hex: '#ef4444', label: 'RESIDENTIAL' },
+  'AGRI_RES': { hex: '#a855f7', label: 'AGRI + RES' },
+  'AGRI_COMM': { hex: '#a3e635', label: 'AGRI + COMM' },
+  'AGRI_INDUSTRIAL': { hex: '#06b6d4', label: 'AGRI + INDUSTRIAL' },
+  'COMM_RES': { hex: '#f97316', label: 'COMM + RES' },
+  'COMM_INDUSTRIAL': { hex: '#ec4899', label: 'COMM + INDUSTRIAL' },
+  'INDUSTRIAL_RES': { hex: '#94a3b8', label: 'INDUSTRIAL + RES' },
+  'AGRI_COMM_RES': { hex: '#92400e', label: 'AGRI + COMM + RES' },
+  'AGRI_COMM_INDUSTRIAL': { hex: '#0d9488', label: 'AGRI + COMM + INDUSTRIAL' },
+  'AGRI_INDUSTRIAL_RES': { hex: '#7f1d1d', label: 'AGRI + INDUSTRIAL + RES' },
+  'COMM_INDUSTRIAL_RES': { hex: '#eab308', label: 'COMM + INDUSTRIAL + RES' },
+  'AGRI_COMM_INDUSTRIAL_RES': { hex: '#000000', label: 'MULTIPLE CLASSIFICATION' },
+  'UNCLASSIFIED': { hex: '#ff00ff', label: 'UNCLASSIFIED / NO DATA' } 
+};
+
+function getLotComboKey(props) {
+  const types = [];
+  const safeParse = (v) => {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    const match = String(v).replace(/,/g, '').match(/[-+]?\d*\.?\d+/);
+    return match ? parseFloat(match[0]) : 0;
+  };
+  if (safeParse(props.area_agri) > 0) types.push('AGRI');
+  if (safeParse(props.area_comml) > 0) types.push('COMM');
+  if (safeParse(props.area_indl) > 0) types.push('INDUSTRIAL');
+  if (safeParse(props.area_res) > 0) types.push('RES');
+  if (types.length === 0) return 'UNCLASSIFIED';
+  return types.sort().join('_');
+}
+
 export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchBrgy = '', searchPin = '' }) {
     // Navigation State
     const [barangayList, setBarangayList] = useState([]);
@@ -38,6 +73,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     const [showDetailsPanel, setShowDetailsPanel] = useState(true);
     const [mapInstance, setMapInstance] = useState(null);
     const [showAttrModal, setShowAttrModal] = useState(false);
+    const [filterClass, setFilterClass] = useState(null);
 
     // Caching and Loading States
     const barangayDataCache = useRef({});
@@ -368,6 +404,17 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         }
     }
 
+    const filteredActiveGeoData = useMemo(() => {
+        if (!activeGeoData || !filterClass || activeLayerKey.includes('municipality') || activeLayerKey.includes('barangay')) return activeGeoData;
+        return {
+            ...activeGeoData,
+            features: activeGeoData.features.filter(f => {
+                const key = getLotComboKey(f.properties);
+                return key.includes(filterClass);
+            })
+        };
+    }, [activeGeoData, filterClass, activeLayerKey]);
+
     const activeFeature = selectedLot || null;
 
     const handleRecenter = () => {
@@ -405,8 +452,13 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
             for (const key of keys) {
                 const val = lotProp(key);
                 if (val !== undefined && val !== null && val !== '') {
-                    const num = Number(val);
-                    if (!Number.isNaN(num)) return num;
+                    if (typeof val === 'number') return val;
+                    const cleanVal = String(val).replace(/,/g, '').trim();
+                    const match = cleanVal.match(/[-+]?\d*\.?\d+/);
+                    if (match) {
+                        const num = parseFloat(match[0]);
+                        if (!isNaN(num)) return num;
+                    }
                 }
             }
             return 0;
@@ -639,7 +691,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                         </div>
                     )}
                     <MapComponent
-                        geoData={activeGeoData}
+                        geoData={filteredActiveGeoData}
                         error={error}
                         onFeatureSelect={handleMapFeatureSelect}
                         onEnlargementRequest={handlePopupEnlargement}
@@ -649,8 +701,46 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                         isBackgroundInteractive={false}
                         showCustomControls={false}
                         onMapReady={setMapInstance}
-                        layerKey={activeLayerKey}
+                        layerKey={activeLayerKey + (filterClass || '')}
                     />
+
+                    {/* Classification Legend */}
+                    {(activeLayerKey.includes('section') || activeLayerKey === 'enlargement') && (
+                        <div className="pim-map-legend" style={{
+                            position: 'absolute',
+                            bottom: '1rem',
+                            left: '1rem',
+                            background: 'rgba(255, 255, 255, 0.95)',
+                            padding: '1rem',
+                            borderRadius: '0.75rem',
+                            zIndex: 1000,
+                            border: '1px solid #e2e8f0',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                            maxHeight: '60%',
+                            overflowY: 'auto',
+                            width: '200px'
+                        }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', marginBottom: '0.5rem', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                                CLASSIFICATION
+                                {filterClass && <button onClick={() => setFilterClass(null)} style={{ border:'none', background:'none', color:'#ef4444', cursor:'pointer', fontSize:'0.6rem'}}>RESET</button>}
+                            </div>
+                            {Object.entries(COMBO_MAP).map(([key, cfg]) => (
+                                <div 
+                                    key={key} 
+                                    onClick={() => setFilterClass(key === filterClass ? null : key)}
+                                    style={{ 
+                                        display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#475569', cursor: 'pointer',
+                                        opacity: filterClass && !key.includes(filterClass) ? 0.3 : 1,
+                                        background: filterClass === key ? '#f1f5f9' : 'transparent',
+                                        padding: '2px 4px', borderRadius: '4px'
+                                    }}
+                                >
+                                    <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: cfg.hex }} />
+                                    {cfg.label}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

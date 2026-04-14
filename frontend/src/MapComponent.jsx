@@ -191,10 +191,10 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
               fillColor: '#3b82f6'
             });
           } else {
-            const featureColor = props.section_color || props.color || '#3388ff';
+            const featureColor = props.color || props.section_color || '#3388ff';
             layer.setStyle({
-              fillOpacity: selectedFeature ? 0.22 : 0.4,
-              weight: selectedFeature ? 1.25 : 2,
+              fillOpacity: selectedFeature ? 0.35 : 0.75,
+              weight: selectedFeature ? 1.5 : 2,
               opacity: 0.8,
               color: '#ffffff',
               fillColor: featureColor
@@ -292,7 +292,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       } else {
         const featureColor = props.section_color || props.color || '#3388ff';
         layer.setStyle({
-          fillOpacity: 0.4,
+          fillOpacity: 0.75,
           weight: 1.5,
           color: '#ffffff',
           fillColor: featureColor
@@ -329,7 +329,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
           layer.setStyle({ fillOpacity: 0.5, weight: 1.5, color: '#ffffff', fillColor: '#3b82f6' });
         } else {
           const featureColor = props.section_color || props.color || '#3388ff';
-          layer.setStyle({ fillOpacity: 0.4, weight: 1.5, color: '#ffffff', fillColor: featureColor });
+          layer.setStyle({ fillOpacity: 0.75, weight: 1.5, color: '#ffffff', fillColor: featureColor });
         }
       } catch (e) {}
     });

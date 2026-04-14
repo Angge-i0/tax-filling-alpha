@@ -175,18 +175,23 @@ def cad_geojson_data(request):
 @api_login_required
 def dashboard_lots_geojson(request):
     """
-    Serves lot-level geometry and land-use classification for the dashboard.
-    If a lot has an enlargement, we prefer the attributes from the enlargement.
+    Serves lot-level geometry and assessment-based classification for the dashboard.
+    The output uses the same class-inclusion logic as the assessment table:
+    positive area plus a matching SMV unit value for that lot/class.
     """
     try:
-        from .pim_views import _normalise_properties, _has_enlargement_marker
-        from .models import PimSection, PimEnlargement
+        from .pim_views import (
+            _prepare_lot_data,
+            _canonical_barangay_name as pim_canonical_barangay_name
+        )
+        from .models import PimEnlargement, LotAdjustment
         
-        # Load all lots
-        lots = PimSection.objects.filter(geom__intersects=SAN_PASCUAL_BBOX).only('properties', 'geom', 'barangay_name', 'section_number')
+        lots = list(
+            PimSection.objects
+            .filter(geom__intersects=SAN_PASCUAL_BBOX)
+            .only('properties', 'geom', 'barangay_name', 'section_number')
+        )
         
-        # Pre-fetch enlargements attributes by PIN to override if needed
-        # This is expensive but necessary if attributes differ
         enlargements = PimEnlargement.objects.filter(geom__intersects=SAN_PASCUAL_BBOX).only('properties')
         enlargement_map = {}
         for en in enlargements.iterator():
@@ -195,27 +200,31 @@ def dashboard_lots_geojson(request):
             if pin:
                 enlargement_map[str(pin).strip()] = p
 
+        pins = []
+        for lot in lots:
+            p = lot.properties or {}
+            pin = p.get('pin') or p.get('PIN')
+            if pin:
+                pins.append(str(pin).strip())
+        adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.filter(pin__in=pins)}
+
         features = []
-        for lot in lots.iterator():
+        for lot in lots:
             raw_props = lot.properties or {}
             pin = str(raw_props.get('pin') or raw_props.get('PIN') or '').strip()
-            
-            # If lot has enlargement, use those properties
-            if pin and pin in enlargement_map:
-                raw_props = enlargement_map[pin]
-            
-            props = _normalise_properties(raw_props)
+            barangay = pim_canonical_barangay_name(lot.barangay_name)
 
-            cleaned_props = {
-                'pin': props.get('pin') or props.get('PIN'),
-                'area_agri': props.get('area_agri'),
-                'area_comml': props.get('area_comml'),
-                'area_indl': props.get('area_indl'),
-                'area_res': props.get('area_res'),
-                'area_exempt': props.get('area_exempt'),
-                'area_rrw': props.get('area_rrw'),
-                'has_enlargement': _has_enlargement_marker(raw_props)
-            }
+            cleaned_props = _prepare_lot_data(
+                raw_props,
+                enlargement_properties=enlargement_map.get(pin),
+                adj_rate=adj_map.get(pin),
+                barangay_name=barangay,
+                use_assessment_classification=True,
+            )
+
+            cleaned_props['barangay'] = barangay
+            cleaned_props['section_number'] = lot.section_number
+
             features.append({
                 'type': 'Feature',
                 'properties': cleaned_props,
@@ -353,7 +362,8 @@ def dashboard_rpt_report(request):
 
         class_meta = {
             'res': {'label': 'Residential', 'area_key': 'area_res', 'assessment_level': 0.05},
-            'agri': {'label': 'Agricultural', 'area_key': 'area_agri', 'assessment_level': 0.06},
+            'agri': {'label': 'Agriculture', 'area_key': 'area_agri', 'assessment_level': 0.06},
+
             'comml': {'label': 'Commercial', 'area_key': 'area_comml', 'assessment_level': 0.25},
             'indl': {'label': 'Industrial', 'area_key': 'area_indl', 'assessment_level': 0.45},
         }
@@ -393,6 +403,7 @@ def dashboard_rpt_report(request):
                     'counts': {'agri': 0, 'res': 0, 'indl': 0, 'comml': 0},
                     'market_value': 0.0,
                     'assessed_value': 0.0,
+                    'tax_due': 0.0,
                 }
 
             # Compute per-class values for this lot
@@ -421,6 +432,7 @@ def dashboard_rpt_report(request):
             if per_lot_market > 0 or per_lot_assessed > 0:
                 barangay_rows[barangay]['market_value'] += per_lot_market
                 barangay_rows[barangay]['assessed_value'] += per_lot_assessed
+                barangay_rows[barangay]['tax_due'] += (per_lot_assessed * tax_rate)
 
         # Build response
         order = ['indl', 'comml', 'res', 'agri']
@@ -444,6 +456,7 @@ def dashboard_rpt_report(request):
             },
             'market_value': round(sum(r['market_value'] for r in rows), 2),
             'assessed_value': round(sum(r['assessed_value'] for r in rows), 2),
+            'tax_due': round(sum(r['tax_due'] for r in rows), 2),
         }
 
         payload_local = {
@@ -562,6 +575,7 @@ def build_rpt_report_cache():
                 'counts': {'agri': 0, 'res': 0, 'indl': 0, 'comml': 0},
                 'market_value': 0.0,
                 'assessed_value': 0.0,
+                'tax_due': 0.0,
             }
 
         per_lot_market = 0.0
@@ -588,6 +602,7 @@ def build_rpt_report_cache():
         if per_lot_market > 0 or per_lot_assessed > 0:
             barangay_rows[barangay]['market_value'] += per_lot_market
             barangay_rows[barangay]['assessed_value'] += per_lot_assessed
+            barangay_rows[barangay]['tax_due'] += (per_lot_assessed * tax_rate)
 
     order = ['indl', 'comml', 'res', 'agri']
     rpt_list = [
@@ -610,6 +625,7 @@ def build_rpt_report_cache():
         },
         'market_value': round(sum(r['market_value'] for r in rows), 2),
         'assessed_value': round(sum(r['assessed_value'] for r in rows), 2),
+        'tax_due': round(sum(r['tax_due'] for r in rows), 2),
     }
 
     payload = {

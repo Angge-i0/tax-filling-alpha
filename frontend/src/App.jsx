@@ -396,7 +396,7 @@ function App() {
           </div>
         </div>
         {/* Content */}
-        <div className="content-container" style={{ overflowY: 'auto' }}>
+        <div className={`content-container${activePage === 'dashboard' ? ' content-container-dashboard' : ''}`} style={{ overflowY: 'auto' }}>
           <ErrorBoundary>
             {renderPage()}
           </ErrorBoundary>

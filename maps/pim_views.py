@@ -69,6 +69,14 @@ COLUMN_MAP = {
     'area rrw': 'area_rrw',
     'area (exempt)': 'area_exempt',
     'area exempt': 'area_exempt',
+    # Spacing and typo variants found in database
+    'area agri ': 'area_agri',
+    'area res ': 'area_res',
+    'area ind ': 'area_indl',
+    'area comml ': 'area_comml',
+    'arp no. ': 'arp_no',
+    'property owner ': 'owner',
+    'property of owner': 'owner',
 }
 
 IGNORE_COLUMNS = {'1', 'geometry', 'geom', 'id', 'fid'}
@@ -79,6 +87,74 @@ SECTION_COLORS = [
     '#14b8a6', '#e11d48', '#8b5cf6', '#0ea5e9', '#d946ef',
     '#65a30d', '#dc2626', '#0891b2', '#7c3aed', '#ca8a04',
 ]
+
+# Land-use classification colors for lots (strictly matching user legend)
+LOT_COLOR_MAP = {
+    'AGRI': '#22c55e',                     # Green
+    'COMM': '#fbbf24',                     # Orange/Amber
+    'INDUSTRIAL': '#3b82f6',                 # Blue
+    'RES': '#ef4444',                       # Red
+    'AGRI_RES': '#a855f7',                 # Purple
+    'AGRI_COMM': '#a3e635',                 # Lime
+    'AGRI_INDUSTRIAL': '#06b6d4',           # Cyan
+    'COMM_RES': '#f97316',                  # Burnt Orange
+    'COMM_INDUSTRIAL': '#ec4899',           # Pink
+    'INDUSTRIAL_RES': '#94a3b8',            # Blue-Grey
+    'AGRI_COMM_RES': '#92400e',             # Brown
+    'AGRI_COMM_INDUSTRIAL': '#0d9488',      # Teal
+    'AGRI_INDUSTRIAL_RES': '#7f1d1d',       # Maroon
+    'COMM_INDUSTRIAL_RES': '#eab308',       # Dark Yellow
+    'AGRI_COMM_INDUSTRIAL_RES': '#000000',  # Black (Multiple)
+    'UNCLASSIFIED': '#ff00ff'               # Magenta
+}
+
+def _lot_combo_key_from_types(types):
+    if not types:
+        return 'UNCLASSIFIED'
+    if len(types) > 3:
+        return 'AGRI_COMM_INDUSTRIAL_RES'
+    return "_".join(sorted(types))
+
+
+def get_lot_color(props):
+    """
+    Computes a color based on the 4 primary classification areas.
+    Matches the logic used in the Dashboard.
+    """
+    types = []
+    # Force float conversion and check for > 0
+    if _safe_num(props.get('area_agri')) > 0: types.append('AGRI')
+    if _safe_num(props.get('area_comml')) > 0: types.append('COMM')
+    if _safe_num(props.get('area_indl')) > 0: types.append('INDUSTRIAL')
+    if _safe_num(props.get('area_res')) > 0: types.append('RES')
+    
+    key = _lot_combo_key_from_types(types)
+    return LOT_COLOR_MAP.get(key, LOT_COLOR_MAP['UNCLASSIFIED'])
+
+
+def _get_assessment_class_keys(props: dict, barangay_name: str) -> list[str]:
+    """
+    Return only the class keys that would actually be counted by the
+    assessment table: positive area and available SMV unit value.
+    """
+    if not barangay_name:
+        return []
+
+    pin = str(props.get('pin') or props.get('PIN') or '').strip()
+    if not pin:
+        return []
+
+    class_keys = []
+    for class_key, meta in _RPT_CLASS_META.items():
+        area = _safe_num(props.get(meta['area_key']))
+        if area <= 0:
+            continue
+        smv = _load_smv_cache(barangay_name, class_key)
+        unit_val = _safe_num(smv.get(pin, {}).get('unit_value'))
+        if unit_val <= 0:
+            continue
+        class_keys.append(class_key)
+    return class_keys
 
 SMV_CLASS_FOLDERS = {
     'res': 'Residential',
@@ -97,6 +173,21 @@ _RPT_CLASS_META = {
     'comml': {'label': 'COMMERCIAL', 'area_key': 'area_comml', 'assessment_level': 0.25},
     'indl': {'label': 'INDUSTRIAL', 'area_key': 'area_indl', 'assessment_level': 0.45},
 }
+
+def _normalise_single_property(key, value):
+    """Internal helper to normalise a single key-value pair."""
+    key_raw = str(key).strip()
+    if not key_raw: return None, None
+    if key_raw in IGNORE_COLUMNS: return None, None
+    
+    key_lower = key_raw.lower()
+    if key_lower in COLUMN_MAP:
+        out_key = COLUMN_MAP[key_lower]
+    else:
+        out_key = key_lower.replace(' ', '_')
+        if out_key in IGNORE_COLUMNS: return None, None
+        
+    return out_key, _clean_val(value)
 
 
 def _slug(value: str) -> str:
@@ -175,12 +266,66 @@ def _load_smv_cache(barangay_name: str, class_key: str) -> dict:
 
 
 def _safe_num(value):
-    try:
-        if value is None:
-            return 0.0
+    if value is None:
+        return 0.0
+    if isinstance(value, (int, float)):
         return float(value)
+    try:
+        s = str(value).replace(',', '').strip()
+        if not s or s.lower() in ('n/a', 'none', 'null', 'nan', '-', '.'):
+            return 0.0
+        res = re.search(r'[-+]?\d*\.?\d+', s)
+        if not res:
+            return 0.0
+        val_str = res.group()
+        if val_str in ('-', '+', '.'):
+            return 0.0
+        return float(val_str)
     except Exception:
         return 0.0
+
+
+def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, barangay_name=None, use_assessment_classification=False):
+    """
+    Standardizes lot properties with enlargement overrides and adjustments.
+    """
+    # 1. Start with raw props, override with enlargement if provided
+    base_props = raw_props or {}
+    if enlargement_properties:
+        # Merge enlargement props on top of base props
+        merged = base_props.copy()
+        merged.update(enlargement_properties)
+        base_props = merged
+        
+    # 2. Normalise
+    props = _normalise_properties(base_props)
+    
+    # 3. Apply adjustment rate
+    if adj_rate is not None:
+        props['adjustment_rate'] = adj_rate
+        
+    # 4. Compute color
+    if use_assessment_classification:
+        assessed_keys = _get_assessment_class_keys(props, barangay_name or '')
+        area_to_lot_key = {
+            'agri': 'AGRI',
+            'comml': 'COMM',
+            'indl': 'INDUSTRIAL',
+            'res': 'RES',
+        }
+        assessed_types = [area_to_lot_key[k] for k in assessed_keys if k in area_to_lot_key]
+        combo_key = _lot_combo_key_from_types(assessed_types)
+        props['assessment_class_keys'] = assessed_keys
+        props['assessment_combo_key'] = combo_key
+        props['is_assessed'] = combo_key != 'UNCLASSIFIED'
+        props['color'] = LOT_COLOR_MAP.get(combo_key, LOT_COLOR_MAP['UNCLASSIFIED'])
+    else:
+        props['color'] = get_lot_color(props)
+    
+    # 5. Marker for enlargement (always check raw base for "see enlargement")
+    props['has_enlargement'] = _has_enlargement_marker(base_props)
+    
+    return props
 
 
 def _update_rpt_cache_for_pin(pin: str, old_rate: float, new_rate: float):
@@ -433,23 +578,34 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
             pins.append(str(pin_val).strip())
     adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.filter(pin__in=pins)}
 
+    # Pre-fetch enlargements for this section to override attributes
+    enlargement_qs = enlargement_base_qs.filter(section_number=section_number)
+    enlargement_map = {}
+    for en in enlargement_qs.iterator():
+        p = en.properties or {}
+        en_pin = str(p.get('pin') or p.get('PIN') or '').strip()
+        if en_pin:
+            enlargement_map[en_pin] = p
+
     features = []
     marker_count = 0
     for row in lots_list:
-        props = _normalise_properties(row.properties)
+        raw_props = row.properties or {}
+        pin_value = str(raw_props.get('pin') or raw_props.get('PIN') or '').strip()
+        
+        # Unified preparation
+        props = _prepare_lot_data(
+            raw_props, 
+            enlargement_properties=enlargement_map.get(pin_value),
+            adj_rate=adj_map.get(pin_value)
+        )
+        
         props['barangay'] = canonical_name
         props['section_number'] = section_number
-        pin_value = props.get('pin') or props.get('PIN')
-        if pin_value:
-            pin_value = str(pin_value).strip()
-            if pin_value in adj_map:
-                props['adjustment_rate'] = adj_map[pin_value]
-        # Strict per-lot rule: show popup/button only when the lot attributes
-        # explicitly contain "See enlargement".
-        lot_has_enlargement = _has_enlargement_marker(props)
-        if lot_has_enlargement:
+        
+        if props.get('has_enlargement'):
             marker_count += 1
-        props['has_enlargement'] = lot_has_enlargement
+            
         features.append(_feature_from_geom(row.geom, props))
 
     geojson = {
@@ -478,7 +634,8 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
 
     features = []
     for row in lots_qs:
-        props = _normalise_properties(row.properties)
+        raw_props = row.properties or {}
+        props = _prepare_lot_data(raw_props) # No enlargement of an enlargement
         props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))
