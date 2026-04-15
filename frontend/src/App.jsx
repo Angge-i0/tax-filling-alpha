@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Sidebar from './Sidebar'
 import LoginModal from './LoginModal'
 import MainDashboard from './MainDashboard'
@@ -31,6 +31,10 @@ function App() {
   // Global Search
   const [searchBrgy, setSearchBrgy] = useState('');
   const [searchPin, setSearchPin] = useState('');
+  const [dashboardLotIndex, setDashboardLotIndex] = useState({});
+  const [isPinSearchFocused, setIsPinSearchFocused] = useState(false);
+  const pinBlurTimeoutRef = useRef(null);
+  const hasLoadedDashboardLotIndex = useRef(false);
 
   // Map state (for PIM view)
   const [geoData, setGeoData] = useState(null)
@@ -60,6 +64,41 @@ function App() {
         setIsAuthenticated(false)
       })
   }, [])
+
+  useEffect(() => {
+    if (!isAuthenticated || hasLoadedDashboardLotIndex.current) return
+    hasLoadedDashboardLotIndex.current = true
+
+    apiGet('/api/dashboard/lots-geojson/')
+      .then(res => res.json())
+      .then(data => {
+        const index = {}
+        ;(data?.features || []).forEach((feature) => {
+          const props = feature?.properties || {}
+          const barangayName = String(props.barangay || props.barangay_name || '').trim()
+          const pin = String(props.pin || props.PIN || '').trim()
+          if (!barangayName || !pin) return
+
+          const key = barangayName.toLowerCase()
+          if (!index[key]) {
+            index[key] = { name: barangayName, pins: [] }
+          }
+          if (!index[key].pins.includes(pin)) {
+            index[key].pins.push(pin)
+          }
+        })
+
+        Object.values(index).forEach((entry) => {
+          entry.pins.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+        })
+
+        setDashboardLotIndex(index)
+      })
+      .catch(err => {
+        hasLoadedDashboardLotIndex.current = false
+        console.error('Failed to load dashboard lot index:', err)
+      })
+  }, [isAuthenticated])
 
   // Fetch GeoJSON when navigating to PIM
   useEffect(() => {
@@ -108,18 +147,6 @@ function App() {
       })
   }, [isAuthenticated, activePage, cadGeoData])
 
-  // Auto-switch to Map View when a valid Barangay is typed in the search bar
-  useEffect(() => {
-    const query = (searchBrgy || '').trim().toLowerCase();
-    if (query.length < 3) return;
-
-    const isMatch = CAD_BARANGAYS.some(b => b.toLowerCase() === query);
-    if (isMatch && activePage === 'dashboard') {
-      setActivePage('map-pim');
-    }
-  }, [searchBrgy]);
-
-
   const handleLoginSuccess = (username, staffFlag, fullNameProp) => {
     setIsAuthenticated(true)
     setUser(username)
@@ -143,12 +170,68 @@ function App() {
       setFullName(null)
       setIsStaff(false)
       setGeoData(null)
+      setDashboardLotIndex({})
+      hasLoadedDashboardLotIndex.current = false
       setError(null)
       setActivePage('dashboard')
     }
   }
 
   // ── Loading ──
+  const matchedDashboardBarangay = useMemo(() => {
+    if (activePage !== 'dashboard') return null
+    const query = String(searchBrgy || '').trim().toLowerCase()
+    if (!query) return null
+
+    return dashboardLotIndex[query]
+      || Object.values(dashboardLotIndex).find(entry => entry.name.toLowerCase() === query)
+      || Object.values(dashboardLotIndex).find(entry => entry.name.toLowerCase().startsWith(query))
+      || Object.values(dashboardLotIndex).find(entry => entry.name.toLowerCase().includes(query))
+      || null
+  }, [activePage, dashboardLotIndex, searchBrgy])
+
+  const pinSuggestions = useMemo(() => {
+    if (activePage !== 'dashboard' || !matchedDashboardBarangay) return []
+
+    const pins = matchedDashboardBarangay.pins || []
+    const rawQuery = String(searchPin || '').trim().toUpperCase()
+
+    if (rawQuery.includes('-')) {
+      return pins
+        .filter(pin => pin.toUpperCase().startsWith(rawQuery))
+        .slice(0, 8)
+        .map(value => ({ type: 'pin', value }))
+    }
+
+    const prefixQuery = rawQuery.replace(/[^0-9]/g, '')
+    const prefixes = Array.from(new Set(
+      pins
+        .map(pin => String(pin).split('-')[0]?.trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+
+    return prefixes
+      .filter(prefix => !prefixQuery || prefix.startsWith(prefixQuery))
+      .slice(0, 8)
+      .map(value => ({ type: 'prefix', value }))
+  }, [activePage, matchedDashboardBarangay, searchPin])
+
+  const showPinSuggestions = activePage === 'dashboard'
+    && !!matchedDashboardBarangay
+    && (isPinSearchFocused || !!searchPin)
+    && pinSuggestions.length > 0
+
+  const handlePinSuggestionSelect = (suggestion) => {
+    if (suggestion.type === 'prefix') {
+      setSearchPin(`${suggestion.value}-`)
+      setIsPinSearchFocused(true)
+      return
+    }
+
+    setSearchPin(suggestion.value)
+    setIsPinSearchFocused(false)
+  }
+
   if (isAuthenticated === null) {
     return (
       <div style={{
@@ -198,7 +281,7 @@ function App() {
       case 'about':
         return <AboutCredits />
       default:
-        return <MainDashboard isStaff={isStaff} />
+        return <MainDashboard isStaff={isStaff} searchBrgy={searchBrgy} searchPin={searchPin} />
     }
   }
 
@@ -228,14 +311,36 @@ function App() {
               />
             </div>
             <div className="header-search-divider" />
-            <div className="header-search-field">
+            <div className="header-search-field header-search-field-pin">
               <input
                 type="text"
                 placeholder="PIN..."
                 value={searchPin}
                 onChange={e => setSearchPin(e.target.value)}
+                onFocus={() => {
+                  if (pinBlurTimeoutRef.current) clearTimeout(pinBlurTimeoutRef.current)
+                  setIsPinSearchFocused(true)
+                }}
+                onBlur={() => {
+                  pinBlurTimeoutRef.current = setTimeout(() => setIsPinSearchFocused(false), 120)
+                }}
                 className="h-search-input"
               />
+              {showPinSuggestions && (
+                <div className="h-search-dropdown">
+                  {pinSuggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.type}-${suggestion.value}`}
+                      type="button"
+                      className="h-search-suggestion"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handlePinSuggestionSelect(suggestion)}
+                    >
+                      {suggestion.value}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>

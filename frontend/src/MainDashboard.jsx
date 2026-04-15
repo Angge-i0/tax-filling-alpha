@@ -219,6 +219,14 @@ function formatArea(value) {
   });
 }
 
+function normalizeBarangay(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normalizePin(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function MapControls({ onCenter }) {
   const map = useMap();
 
@@ -441,9 +449,6 @@ const STYLES = `
     border: 1px solid #dce7f4;
     box-shadow: 0 12px 22px rgba(15, 23, 42, 0.14);
   }
-  .dash-left-floating-chart[data-has-lot="false"] {
-    opacity: 0.7;
-  }
   .dash-no-data-msg {
     height: 100%;
     display: flex;
@@ -458,7 +463,7 @@ const STYLES = `
   }
 `;
 
-export default function MainDashboard() {
+export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
   const [report, setReport] = useState(null);
   const [lotGeo, setLotGeo] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState(null);
@@ -478,6 +483,47 @@ export default function MainDashboard() {
       setSelectedBarangay(rows[0]);
     }
   }, [rows, selectedBarangay]);
+
+  useEffect(() => {
+    if (!lotGeo?.features?.length || !geoRef.current?._map) return;
+
+    const brgyQuery = normalizeBarangay(searchBrgy);
+    const pinQuery = normalizePin(searchPin);
+    if (!brgyQuery && !pinQuery) return;
+
+    const features = lotGeo.features.filter((feature) => {
+      const props = feature?.properties || {};
+      const featureBarangay = normalizeBarangay(props.barangay);
+      const featurePin = normalizePin(props.pin || props.PIN);
+      const barangayMatches = !brgyQuery || featureBarangay === brgyQuery;
+      const pinMatches = !pinQuery || featurePin.includes(pinQuery);
+      return barangayMatches && pinMatches;
+    });
+
+    if (!features.length) return;
+
+    const map = geoRef.current._map;
+    const bounds = L.geoJSON({
+      type: 'FeatureCollection',
+      features,
+    }).getBounds();
+
+    if (pinQuery) {
+      const matchedLot = features[0]?.properties || null;
+      if (matchedLot) {
+        setSelectedLot(matchedLot);
+      }
+      if (bounds?.isValid?.()) {
+        map.flyToBounds(bounds, { padding: [80, 80], duration: 1.2, maxZoom: 18 });
+      }
+      return;
+    }
+
+    setSelectedLot(null);
+    if (bounds?.isValid?.()) {
+      map.flyToBounds(bounds, getMapFitOptions(map.getSize()));
+    }
+  }, [searchBrgy, searchPin, lotGeo]);
 
   const revenueData = useMemo(() => {
     if (!report?.rpt_by_class) return null;
@@ -691,6 +737,14 @@ export default function MainDashboard() {
     }
   };
 
+  const selectedLotBarangay = selectedLot?.barangay || selectedLot?.barangay_name || 'San Pascual';
+  const overviewTitle = selectedLot?.pin
+    ? `Lot Overview of ${selectedLotBarangay}: Lot ${selectedLot.pin}`
+    : 'Lot Overview of San Pascual, Batangas';
+  const areaCaption = currentAreaInfo?.isLot
+    ? `Area Classification (${selectedLotBarangay} - Lot ${selectedLot?.pin})`
+    : 'Area Classification (Municipal)';
+
   return (
     <div className="dash-root">
       <style>{STYLES}</style>
@@ -716,11 +770,11 @@ export default function MainDashboard() {
               </MapContainer>
 
                 <div className="dash-map-summary">
-                  <h3>{selectedLot?.pin ? `Lot ${selectedLot.pin}` : 'Lot Overview of San Pascual, Batangas'}</h3>
+                  <h3>{overviewTitle}</h3>
                   <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
                     Based on land area type classification (sqm).
                     {selectedLot 
-                      ? ` Calculation for lot ${selectedLot.pin}.` 
+                      ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.` 
                       : ' Showing the total aggregate area for all properties in the municipality.'}
                   </p>
                   <div className="dash-summary-grid">
@@ -752,7 +806,7 @@ export default function MainDashboard() {
 
               <div className="dash-left-floating-chart" data-has-lot={!!selectedLot}>
                 <div className="dash-chart-caption">
-                  {currentAreaInfo?.isLot ? `Area Classification (Lot ${selectedLot?.pin})` : 'Area Classification (Municipal)'}
+                  {areaCaption}
                 </div>
                 <div style={{ height: '14rem', position: 'relative' }}>
                   {lotAreaPieData ? (
