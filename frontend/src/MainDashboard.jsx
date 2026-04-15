@@ -62,45 +62,77 @@ const pieCalloutPlugin = {
     const baseFont = ChartJS.defaults.font.family || "'Plus Jakarta Sans', sans-serif";
 
     ctx.save();
-    ctx.font = `700 11px ${baseFont}`;
+    ctx.font = `800 12px ${baseFont}`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
 
+    // Collect all callout info for conflict resolution
+    const callouts = [];
     meta.data.forEach((arc, index) => {
       const value = Number(dataset.data[index] || 0);
       if (!value) return;
 
-      const percentageText = `${Math.round((value / total) * 100)}%`;
+      const p = (value / total) * 100;
+      const percentageText = p.toFixed(1) + '%';
       const angle = (arc.startAngle + arc.endAngle) / 2;
-      const color = Array.isArray(dataset.backgroundColor)
-        ? dataset.backgroundColor[index]
-        : dataset.backgroundColor;
+      const color = (Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor);
       const dirX = Math.cos(angle);
       const dirY = Math.sin(angle);
+      
       const startX = arc.x + dirX * (arc.outerRadius - 1);
       const startY = arc.y + dirY * (arc.outerRadius - 1);
-      const elbowX = arc.x + dirX * (arc.outerRadius + 12);
-      const elbowY = arc.y + dirY * (arc.outerRadius + 12);
+      const elbowX = arc.x + dirX * (arc.outerRadius + 14);
+      const elbowY = arc.y + dirY * (arc.outerRadius + 14);
+      
       const textWidth = ctx.measureText(percentageText).width;
-      const boxWidth = textWidth + 16;
-      const boxHeight = 24;
-      const isRight = dirX >= 0;
-      const rawEndX = elbowX + (isRight ? 18 : -18);
+      const boxWidth = textWidth + 18;
+      const boxHeight = 26;
+
+      callouts.push({
+        angle, dirX, dirY, startX, startY, elbowX, elbowY, 
+        percentageText, color, boxWidth, boxHeight,
+        isRight: dirX >= 0,
+        sortY: elbowY 
+      });
+    });
+
+    // Sort by Y and resolve overlaps
+    callouts.sort((a, b) => a.sortY - b.sortY);
+    const minGap = 28;
+    for (let i = 1; i < callouts.length; i++) {
+      if (callouts[i].elbowY - callouts[i - 1].elbowY < minGap) {
+        callouts[i].elbowY = callouts[i - 1].elbowY + minGap;
+      }
+    }
+
+    callouts.forEach((c) => {
+      const { startX, startY, elbowX, elbowY, percentageText, color, boxWidth, boxHeight, isRight } = c;
+      const rawEndX = elbowX + (isRight ? 20 : -20);
       const unclampedBoxX = isRight ? rawEndX : rawEndX - boxWidth;
       const boxX = Math.min(Math.max(16, unclampedBoxX), width - boxWidth - 16);
       const boxY = elbowY - boxHeight / 2;
       const lineEndX = isRight ? boxX : boxX + boxWidth;
 
       ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.lineTo(elbowX, elbowY);
       ctx.lineTo(lineEndX, elbowY);
       ctx.stroke();
 
+      // Draw the box
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.1)';
+      ctx.shadowBlur = 4;
+      ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+      ctx.shadowBlur = 0;
+      
+      ctx.lineWidth = 2;
+      ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+      // Arrow head
+      ctx.fillStyle = color;
       ctx.beginPath();
       if (isRight) {
         ctx.moveTo(lineEndX + 4, elbowY);
@@ -114,8 +146,7 @@ const pieCalloutPlugin = {
       ctx.closePath();
       ctx.fill();
 
-      ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = color;
       ctx.fillText(percentageText, boxX + boxWidth / 2, elbowY);
     });
 
@@ -141,33 +172,50 @@ const fmtMoney = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-function getDominantClass(counts = {}) {
+const safeNum = (value) => {
+  const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+function getLotAreaValues(props = {}) {
+  return {
+    agri: safeNum(props.area_agri),
+    comml: safeNum(props.area_comml ?? props.area_commml),
+    indl: safeNum(props.area_indl ?? props.area_ind),
+    res: safeNum(props.area_res),
+  };
+}
+
+function getDominantLotClass(props = {}) {
+  const areaValues = getLotAreaValues(props);
   return ['agri', 'res', 'indl', 'comml'].reduce((best, key) => {
-    const bestValue = Number(counts?.[best] || 0);
-    const nextValue = Number(counts?.[key] || 0);
+    const bestValue = areaValues[best] || 0;
+    const nextValue = areaValues[key] || 0;
     return nextValue > bestValue ? key : best;
   }, 'agri');
 }
 
-function getBarangayStyle(summary, classMax, isSelected) {
-  if (!summary) {
-    return {
-      fillColor: '#cbd5e1',
-      fillOpacity: 0.2,
-      color: '#ffffff',
-      weight: isSelected ? 3 : 1.2,
-    };
-  }
+function getLotStyle(props, hoveredPin, selectedPin) {
+  const areaValues = getLotAreaValues(props);
+  const dominantClass = getDominantLotClass(props);
+  const dominantValue = areaValues[dominantClass] || 0;
+  const pin = String(props?.pin || '');
+  const isHovered = hoveredPin && hoveredPin === pin;
+  const isSelected = selectedPin && selectedPin === pin;
 
-  const dominantClass = getDominantClass(summary.counts);
-  const dominantValue = Number(summary.counts?.[dominantClass] || 0);
-  const max = Number(classMax?.[dominantClass] || 1);
   return {
     fillColor: dominantValue > 0 ? MAIN_COLORS[dominantClass] : '#cbd5e1',
-    fillOpacity: dominantValue > 0 ? 0.35 + 0.45 * (dominantValue / max) : 0.18,
-    color: isSelected ? '#0f172a' : '#ffffff',
-    weight: isSelected ? 3 : 1.2,
+    fillOpacity: isSelected ? 1.0 : (dominantValue > 0 ? (isHovered ? 0.95 : 0.85) : (isHovered ? 0.45 : 0.25)),
+    color: isSelected ? '#3b82f6' : (isHovered ? '#ffffff' : '#f8fafc'),
+    weight: isSelected ? 3.5 : (isHovered ? 2.2 : 0.8),
   };
+}
+
+function formatArea(value) {
+  return safeNum(value).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 function MapControls({ onCenter }) {
@@ -202,12 +250,12 @@ function MapControls({ onCenter }) {
   );
 }
 
-function BarangayMapContent({
+function LotMapContent({
   geoData,
-  summaryByBarangay,
-  selectedBarangay,
-  onSelectBarangay,
-  classMax,
+  hoveredLotPin,
+  selectedLotPin,
+  onHoverLot,
+  onSelectLot,
   geoRef,
 }) {
   const map = useMap();
@@ -227,7 +275,7 @@ function BarangayMapContent({
 
   useEffect(() => {
     fitToVisibleMap();
-  }, [geoData, map, geoRef, selectedBarangay]);
+  }, [geoData, map, geoRef]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -253,36 +301,38 @@ function BarangayMapContent({
       window.removeEventListener('resize', handleResize);
       resizeObserver?.disconnect();
     };
-  }, [map, geoData, selectedBarangay]);
+  }, [map, geoData]);
 
   const onEachFeature = (feature, layer) => {
-    const barangay = feature.properties?.ADM4_EN;
-    const summary = summaryByBarangay.get(barangay);
+    const props = feature.properties || {};
+    const pin = String(props.pin || '').trim();
 
-    layer.bindTooltip(barangay || 'Barangay', { sticky: true, opacity: 0.95 });
-    layer.on('click', () => {
-      if (summary) onSelectBarangay(summary);
-    });
+    layer.bindTooltip(pin ? `Lot ${pin}` : 'Lot', { sticky: true, opacity: 0.95 });
     layer.on('mouseover', () => {
-      layer.setStyle({ weight: 2.6, fillOpacity: 0.82, color: '#0f172a' });
+      onHoverLot(props);
+      layer.setStyle(getLotStyle(props, pin, selectedLotPin));
     });
     layer.on('mouseout', () => {
-      const isSelected = selectedBarangay === barangay;
-      layer.setStyle(getBarangayStyle(summary, classMax, isSelected));
+      onHoverLot(null);
+      layer.setStyle(getLotStyle(props, null, selectedLotPin));
+    });
+    layer.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      onSelectLot(props);
+      const bounds = layer.getBounds();
+      if (bounds?.isValid()) {
+        map.flyToBounds(bounds, { padding: [80, 80], duration: 1.2, maxZoom: 18 });
+      }
     });
   };
 
-  const style = (feature) => {
-    const barangay = feature.properties?.ADM4_EN;
-    const summary = summaryByBarangay.get(barangay);
-    return getBarangayStyle(summary, classMax, selectedBarangay === barangay);
-  };
+  const style = (feature) => getLotStyle(feature.properties || {}, hoveredLotPin, selectedLotPin);
 
   return geoData ? (
     <>
       <TileLayer url="http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" subdomains={['mt0', 'mt1', 'mt2', 'mt3']} />
       <GeoJSON
-        key={`barangays-${selectedBarangay || 'none'}`}
+        key="lots-layer"
         ref={geoRef}
         data={geoData}
         onEachFeature={onEachFeature}
@@ -300,17 +350,19 @@ const STYLES = `
   .dash-title-block h1 { font-family: 'Playfair Display', serif; font-size: 2.22rem; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
   .dash-title-block p { font-size: 0.85rem; font-weight: 700; color: #64748b; letter-spacing: 0.1em; margin-top: 0.25rem; }
   .dash-main-container { display: flex; flex-direction: column; gap: 1.4rem; width: calc(100% - 2rem); max-width: 1600px; margin: 0 auto; padding-right: 2rem; box-sizing: border-box; }
-  .dash-upper-section { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(20rem, 0.86fr); gap: 1rem; align-items: stretch; }
-  .dash-map-stage { display: flex; flex-direction: column; min-height: 100%; }
-  .dash-map-panel { position: relative; background: #fff; border-radius: 1rem; border: 1px solid #dce7f4; overflow: hidden; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); min-height: 32rem; height: 100%; }
-  .dash-map-summary { position: absolute; top: 0.9rem; left: 0.9rem; z-index: 1000; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; width: 14.5rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.14); }
+  .dash-upper-section { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(22rem, 0.8fr); gap: 1.4rem; align-items: stretch; }
+  .dash-map-stage { display: flex; flex-grow: 1; }
+  .dash-map-panel { position: relative; background: #fff; border-radius: 1rem; border: 1px solid #dce7f4; overflow: hidden; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); flex-grow: 1; min-height: 44rem; }
+  .dash-map-summary { position: absolute; top: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); min-width: 16rem; }
+  .dash-floating-chart { position: absolute; bottom: 0.9rem; right: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; min-width: 18rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); }
+  .dash-left-floating-chart { position: absolute; bottom: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); min-width: 16rem; }
   .dash-map-summary h3 { margin: 0; font-size: 0.95rem; font-weight: 800; color: #16345c; }
   .dash-map-summary p { margin: 0.25rem 0 0.65rem; font-size: 0.72rem; color: #6b7f99; line-height: 1.35; }
   .dash-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin-bottom: 0.65rem; }
   .dash-summary-pill { background: #ffffff; border: 2px solid #dde8f3; border-radius: 0.8rem; padding: 0.55rem 0.6rem; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
   .dash-summary-pill:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12); }
-  .dash-summary-pill label { display: block; font-size: 0.56rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.2rem; }
-  .dash-summary-pill strong { font-size: 0.88rem; }
+  .dash-summary-pill label { display: block; font-size: 0.48rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dash-summary-pill strong { font-size: 0.7rem; word-break: break-all; line-height: 1.1; display: block; margin-top: 0.1rem; }
   .dash-summary-value { border-top: 1px solid #e5eef6; padding-top: 0.65rem; margin-top: 0.65rem; display: grid; gap: 0.5rem; }
   .dash-summary-row { display: flex; justify-content: space-between; gap: 0.9rem; align-items: center; }
   .dash-summary-row span { font-size: 0.54rem; font-weight: 800; color: #71839a; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -376,39 +428,56 @@ const STYLES = `
     .dash-pie-area { min-height: 17rem; }
     .dash-signifies-list { grid-template-columns: 1fr; }
   }
+  .dash-left-floating-chart {
+    position: absolute;
+    left: 0.9rem;
+    bottom: 0.9rem;
+    width: min(15.5rem, calc(100% - 10rem));
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 0.9rem;
+    padding: 0.8rem 0.9rem;
+    z-index: 1000;
+    border: 1px solid #dce7f4;
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.14);
+  }
+  .dash-left-floating-chart[data-has-lot="false"] {
+    opacity: 0.7;
+  }
+  .dash-no-data-msg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+  }
 `;
 
 export default function MainDashboard() {
   const [report, setReport] = useState(null);
-  const [barangayGeo, setBarangayGeo] = useState(null);
+  const [lotGeo, setLotGeo] = useState(null);
   const [selectedBarangay, setSelectedBarangay] = useState(null);
+  const [hoveredLot, setHoveredLot] = useState(null);
+  const [selectedLot, setSelectedLot] = useState(null);
   const geoRef = useRef(null);
 
   useEffect(() => {
     apiGet('/api/dashboard/rpt-report/').then((r) => r.json()).then(setReport);
-    apiGet('/api/geojson/').then((r) => r.json()).then(setBarangayGeo);
+    apiGet('/api/dashboard/lots-geojson/').then((r) => r.json()).then(setLotGeo);
   }, []);
 
   const rows = report?.assessment_table?.rows || [];
-
-  const summaryByBarangay = useMemo(() => {
-    const map = new Map();
-    rows.forEach((row) => map.set(row.barangay, row));
-    return map;
-  }, [rows]);
 
   useEffect(() => {
     if (!selectedBarangay && rows.length) {
       setSelectedBarangay(rows[0]);
     }
   }, [rows, selectedBarangay]);
-
-  const classMax = useMemo(() => ({
-    agri: Math.max(1, ...rows.map((row) => Number(row.counts?.agri || 0))),
-    res: Math.max(1, ...rows.map((row) => Number(row.counts?.res || 0))),
-    indl: Math.max(1, ...rows.map((row) => Number(row.counts?.indl || 0))),
-    comml: Math.max(1, ...rows.map((row) => Number(row.counts?.comml || 0))),
-  }), [rows]);
 
   const revenueData = useMemo(() => {
     if (!report?.rpt_by_class) return null;
@@ -438,6 +507,127 @@ export default function MainDashboard() {
       ],
     };
   }, [report]);
+
+  const lotAreaPieOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: { top: 36, right: 48, bottom: 36, left: 48 } },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#ffffff',
+        titleColor: '#0f172a',
+        bodyColor: '#334155',
+        borderColor: '#e2e8f0',
+        borderWidth: 1,
+        titleFont: { size: 12, weight: '800' },
+        bodyFont: { size: 11, weight: '600' },
+        padding: 10,
+        displayColors: true,
+        cornerRadius: 8,
+        callbacks: {
+          labelVerticalAlignment: 'center',
+          title(context) {
+            return context[0].label.toUpperCase();
+          },
+          label(context) {
+            const total = context.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0);
+            const value = Number(context.parsed || 0);
+            const percent = total ? ((value / total) * 100).toFixed(1) : '0.0';
+            const formattedValue = formatArea(value);
+            const formattedTotal = formatArea(total);
+            
+            return [
+              `Area: ${formattedValue} sqm`,
+              `Formula: (${formattedValue} / ${formattedTotal}) × 100`,
+              `Result: ${percent}%`
+            ];
+          },
+        },
+      },
+      datalabels: { display: false },
+    },
+  }), []);
+
+  const totalAreaStats = useMemo(() => {
+    if (!lotGeo?.features) return null;
+    let agri = 0, comml = 0, indl = 0, res = 0;
+    lotGeo.features.forEach(f => {
+      const a = getLotAreaValues(f.properties);
+      agri += a.agri;
+      comml += a.comml;
+      indl += a.indl;
+      res += a.res;
+    });
+    const total = agri + comml + indl + res;
+    if (total === 0) return null;
+    
+    const data = [agri, comml, res, indl];
+    const labels = ['Agricultural', 'Commercial', 'Residential', 'Industrial'];
+    
+    let maxVal = -1;
+    let maxIdx = 0;
+    data.forEach((v, i) => {
+      if (v > maxVal) { maxVal = v; maxIdx = i; }
+    });
+    
+    return {
+      agri, comml, indl, res,
+      total,
+      data,
+      labels,
+      dominant: {
+        label: labels[maxIdx],
+        percent: ((maxVal / total) * 100).toFixed(1),
+        color: [MAIN_COLORS.agri, MAIN_COLORS.comml, MAIN_COLORS.res, MAIN_COLORS.indl][maxIdx]
+      }
+    };
+  }, [lotGeo]);
+
+  const currentAreaInfo = useMemo(() => {
+    if (selectedLot) {
+      const a = getLotAreaValues(selectedLot);
+      const total = a.agri + a.comml + a.indl + a.res;
+      if (total === 0) return null;
+      
+      const data = [a.agri, a.comml, a.res, a.indl];
+      const labels = ['Agricultural', 'Commercial', 'Residential', 'Industrial'];
+      
+      let maxVal = -1;
+      let maxIdx = 0;
+      data.forEach((v, i) => {
+        if (v > maxVal) { maxVal = v; maxIdx = i; }
+      });
+
+      return {
+        isLot: true,
+        data,
+        labels,
+        total,
+        dominant: {
+          label: labels[maxIdx],
+          percent: ((maxVal / total) * 100).toFixed(1),
+          color: [MAIN_COLORS.agri, MAIN_COLORS.comml, MAIN_COLORS.res, MAIN_COLORS.indl][maxIdx]
+        }
+      };
+    }
+    return totalAreaStats ? { ...totalAreaStats, isLot: false } : null;
+  }, [selectedLot, totalAreaStats]);
+
+  const lotAreaPieData = useMemo(() => {
+    if (!currentAreaInfo) return null;
+    return {
+      labels: currentAreaInfo.labels,
+      datasets: [
+        {
+          data: currentAreaInfo.data,
+          backgroundColor: [MAIN_COLORS.agri, MAIN_COLORS.comml, MAIN_COLORS.res, MAIN_COLORS.indl],
+          borderColor: '#ffffff',
+          borderWidth: 2,
+        },
+      ],
+    };
+  }, [currentAreaInfo]);
 
   const pieOptions = useMemo(() => ({
     responsive: true,
@@ -490,6 +680,7 @@ export default function MainDashboard() {
   }), []);
 
   const handleCenter = () => {
+    setSelectedLot(null);
     if (!geoRef.current) return;
     const bounds = geoRef.current.getBounds();
     const map = geoRef.current._map;
@@ -511,52 +702,43 @@ export default function MainDashboard() {
           <div className="dash-map-stage">
             <div className="dash-map-panel">
               <MapContainer style={{ height: '100%', width: '100%' }} center={[13.79, 121.0]} zoom={13} preferCanvas>
-                <BarangayMapContent
-                  geoData={barangayGeo}
-                  summaryByBarangay={summaryByBarangay}
-                  selectedBarangay={selectedBarangay?.barangay || null}
-                  onSelectBarangay={setSelectedBarangay}
-                  classMax={classMax}
+                <LotMapContent
+                  geoData={lotGeo}
+                  hoveredLotPin={hoveredLot?.pin || null}
+                  selectedLotPin={selectedLot?.pin || null}
+                  onHoverLot={setHoveredLot}
+                  onSelectLot={setSelectedLot}
                   geoRef={geoRef}
                 />
                 <MapControls onCenter={handleCenter} />
               </MapContainer>
 
-              <div className="dash-map-summary">
-                <h3>{selectedBarangay?.barangay || 'Select a barangay'}</h3>
-                <p>
-                  {selectedBarangay
-                    ? 'Map color is based on whichever parcel type has the greatest count in this barangay.'
-                    : 'Click a barangay polygon to see its assessment summary.'}
-                </p>
-                <div className="dash-summary-grid">
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
-                    <label style={{ color: MAIN_COLORS.agri }}>Agricultural</label>
-                    <strong style={{ color: MAIN_COLORS.agri }}>{selectedBarangay?.counts?.agri ?? 0}</strong>
+                <div className="dash-map-summary" style={{ width: '18.5rem' }}>
+                  <h3>{selectedLot?.pin ? `Lot ${selectedLot.pin}` : 'Lot Overview of San Pascual, Batangas'}</h3>
+                  <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
+                    Based on Land Area Type Classification (sqm).
+                    {selectedLot 
+                      ? ` Calculation for lot ${selectedLot.pin}.` 
+                      : ' Showing the **Total Aggregate Area** for all properties in the municipality.'}
+                  </p>
+                  <div className="dash-summary-grid">
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
+                      <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Area Agricultural'}</label>
+                      <strong style={{ color: MAIN_COLORS.agri }}>{formatArea(selectedLot ? selectedLot.area_agri : totalAreaStats?.agri)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
+                      <label style={{ color: MAIN_COLORS.res }}>{selectedLot ? 'Area Residential' : 'Total Area Residential'}</label>
+                      <strong style={{ color: MAIN_COLORS.res }}>{formatArea(selectedLot ? selectedLot.area_res : totalAreaStats?.res)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
+                      <label style={{ color: MAIN_COLORS.indl }}>{selectedLot ? 'Area Industrial' : 'Total Area Industrial'}</label>
+                      <strong style={{ color: MAIN_COLORS.indl }}>{formatArea(selectedLot ? (selectedLot.area_indl ?? selectedLot.area_ind) : totalAreaStats?.indl)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
+                      <label style={{ color: MAIN_COLORS.comml }}>{selectedLot ? 'Area Commercial' : 'Total Area Commercial'}</label>
+                      <strong style={{ color: MAIN_COLORS.comml }}>{formatArea(selectedLot ? (selectedLot.area_comml ?? selectedLot.area_commml) : totalAreaStats?.comml)}</strong>
+                    </div>
                   </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
-                    <label style={{ color: MAIN_COLORS.res }}>Residential</label>
-                    <strong style={{ color: MAIN_COLORS.res }}>{selectedBarangay?.counts?.res ?? 0}</strong>
-                  </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
-                    <label style={{ color: MAIN_COLORS.indl }}>Industrial</label>
-                    <strong style={{ color: MAIN_COLORS.indl }}>{selectedBarangay?.counts?.indl ?? 0}</strong>
-                  </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
-                    <label style={{ color: MAIN_COLORS.comml }}>Commercial</label>
-                    <strong style={{ color: MAIN_COLORS.comml }}>{selectedBarangay?.counts?.comml ?? 0}</strong>
-                  </div>
-                </div>
-                <div className="dash-summary-value">
-                  <div className="dash-summary-row">
-                    <span>Market Value</span>
-                    <strong>{fmtMoney(selectedBarangay?.market_value)}</strong>
-                  </div>
-                  <div className="dash-summary-row">
-                    <span>Assessed Value</span>
-                    <strong>{fmtMoney(selectedBarangay?.assessed_value)}</strong>
-                  </div>
-                </div>
               </div>
 
               <div className="dash-floating-chart">
@@ -564,6 +746,36 @@ export default function MainDashboard() {
                 <div style={{ height: '8.5rem' }}>
                   {barData && <Bar data={barData} options={barOptions} />}
                 </div>
+              </div>
+
+              <div className="dash-left-floating-chart" data-has-lot={!!selectedLot} style={{ width: '18.5rem' }}>
+                <div className="dash-chart-caption">
+                  {currentAreaInfo?.isLot ? `Area Classification (Lot ${selectedLot?.pin})` : 'Area Classification (Municipal)'}
+                </div>
+                <div style={{ height: '14rem', position: 'relative' }}>
+                  {lotAreaPieData ? (
+                    <Pie data={lotAreaPieData} options={lotAreaPieOptions} />
+                  ) : (
+                    <div className="dash-no-data-msg">
+                      {selectedLot ? 'No Area Data for this lot' : 'Calculating land use...'}
+                    </div>
+                  )}
+                </div>
+                {currentAreaInfo && (
+                  <div style={{ marginTop: '0.6rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                      Highest Classification
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: currentAreaInfo.dominant.color }}>
+                        {currentAreaInfo.dominant.label}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>
+                        {currentAreaInfo.dominant.percent}%
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
