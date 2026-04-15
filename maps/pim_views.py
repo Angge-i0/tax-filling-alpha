@@ -322,7 +322,24 @@ def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, bar
     else:
         props['color'] = get_lot_color(props)
     
-    # 5. Marker for enlargement (always check raw base for "see enlargement")
+    # 5. Inject SMV unit values so the frontend can compute per-lot tax
+    if barangay_name:
+        pin = str(props.get('pin') or props.get('PIN') or '').strip()
+        if pin:
+            for class_key, meta in _RPT_CLASS_META.items():
+                area = _safe_num(props.get(meta['area_key']))
+                if area <= 0:
+                    continue
+                smv = _load_smv_cache(barangay_name, class_key)
+                smv_entry = smv.get(pin, {})
+                unit_val = _safe_num(smv_entry.get('unit_value'))
+                if unit_val > 0:
+                    props[f'unit_value_{class_key}'] = unit_val
+                rrw_val = smv_entry.get('area_rrw')
+                if rrw_val is not None and _safe_num(rrw_val) > 0:
+                    props['area_rrw'] = _safe_num(rrw_val)
+
+    # 6. Marker for enlargement (always check raw base for "see enlargement")
     props['has_enlargement'] = _has_enlargement_marker(base_props)
     
     return props
@@ -597,7 +614,8 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
         props = _prepare_lot_data(
             raw_props, 
             enlargement_properties=enlargement_map.get(pin_value),
-            adj_rate=adj_map.get(pin_value)
+            adj_rate=adj_map.get(pin_value),
+            barangay_name=canonical_name
         )
         
         props['barangay'] = canonical_name
@@ -635,7 +653,7 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
     features = []
     for row in lots_qs:
         raw_props = row.properties or {}
-        props = _prepare_lot_data(raw_props) # No enlargement of an enlargement
+        props = _prepare_lot_data(raw_props, barangay_name=canonical_name) # No enlargement of an enlargement
         props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))

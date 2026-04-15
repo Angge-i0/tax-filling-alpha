@@ -83,6 +83,51 @@ If you need to import `.gpkg` files into PostGIS:
 powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
 ```
 
+### 6. Database Export & Restore
+
+#### Exporting (create a portable SQL dump)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\export_db.ps1 -DumpPath "taxfiling.sql"
+```
+
+#### Restoring (load a SQL dump into a fresh or existing DB)
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore_db.ps1 -DumpPath "taxfiling.sql"
+```
+
+The restore script automatically:
+1. Ensures PostGIS extension exists
+2. Loads the SQL dump into the container
+3. Runs Django migrations
+4. Rebuilds the dashboard RPT report cache
+
+> **Important**: After restoring, always restart both the Django backend and the Vite frontend dev server to clear in-memory caches.
+
+### 7. Tax Computation Data Requirements
+
+For per-lot tax computations to work (non-zero values), **three things** must be in place:
+
+| Requirement | Location | Purpose |
+|---|---|---|
+| **PostGIS lot data** | `pim_sections` table | Provides lot geometry and area attributes (`area_res`, `area_agri`, etc.) |
+| **SMV GeoPackage files** | `maps/static/SMV/<Class>/` | Provides unit values per PIN for each land classification |
+| **Dashboard cache** | `maps/static/rpt_report_cache.json` | Pre-computed aggregate totals for the dashboard |
+
+**SMV folder structure** (must contain `.gpkg` files with `PIN` and `Unit Value` columns):
+```
+maps/static/SMV/
+├── Residential/       ← .gpkg files per barangay
+├── Agricultural/      ← .gpkg files per barangay
+├── Commercial/        ← .gpkg files per barangay
+└── Industrial/        ← .gpkg files per barangay
+```
+
+**Rebuilding the dashboard cache manually**:
+```bash
+venv\Scripts\activate
+python manage.py build_rpt_report_cache
+```
+
 ## Authentication
 
 ### Current Login Behavior

@@ -471,36 +471,42 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                 key: 'res',
                 label: 'Residential',
                 areaKeys: ['area_res', 'area_resi', 'area_residential'],
+                unitKeys: ['unit_value_res', 'unit_value_residential'],
                 assessmentLevel: 0.05
             },
             {
                 key: 'agri',
                 label: 'Agricultural',
                 areaKeys: ['area_agri', 'area_agriculture', 'area_agricultural'],
+                unitKeys: ['unit_value_agri', 'unit_value_agricultural'],
                 assessmentLevel: 0.06
             },
             {
                 key: 'comml',
                 label: 'Commercial',
                 areaKeys: ['area_comml', 'area_comm', 'area_commercial'],
+                unitKeys: ['unit_value_comml', 'unit_value_commercial'],
                 assessmentLevel: 0.25
             },
             {
                 key: 'indl',
                 label: 'Industrial',
                 areaKeys: ['area_indl', 'area_ind', 'area_industrial'],
+                unitKeys: ['unit_value_indl', 'unit_value_industrial'],
                 assessmentLevel: 0.45
             },
             {
                 key: 'rrw',
                 label: 'RRW',
                 areaKeys: ['area_rrw'],
+                unitKeys: ['unit_value_rrw'],
                 assessmentLevel: getNumberProp(['assessment_rrw', 'assessment_level_rrw']) || 0
             },
             {
                 key: 'exempt',
                 label: 'Exempt',
                 areaKeys: ['area_exempt'],
+                unitKeys: [],
                 assessmentLevel: 0
             }
         ];
