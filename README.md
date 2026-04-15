@@ -1,125 +1,184 @@
-# Tax Filling Project
+# Tax Filing Project
 
-This is a comprehensive guide to setting up and running the Tax Filling application. The project consists of a Django backend (with GeoDjango/PostGIS) and a React frontend.
+This project is a Django + React geographic information system for San Pascual, Batangas. It combines a GeoDjango/PostGIS backend with a Vite/React frontend for lot mapping, dashboard analytics, and property tax visualization.
 
-## 🚀 Quick Start (Windows)
+## For System Administrators (Classmates)
+To access the latest system changes and log in to the admin dashboard on your machine:
+
+1. **Pull the latest code** from the repository.
+2. **Update your local database** by running:
+   ```bash
+   venv\Scripts\activate
+   python manage.py migrate
+   ```
+3. **Restart the server**:
+   ```bash
+   python manage.py runserver
+   ```
+4. **Log in with the shared account**:
+   * **Email**: `lgusanpascual.sysadmin@gmail.com`
+   * **Password**: `lgusp123`
+
+*Note: The system automatically creates this account on your local machine the first time you attempt to log in after running migrations.*
+
+### Implementation Logic (How it works)
+To ensure every classmate has immediate access without manual database entry or shared SQL dumps, we implemented a **Just-In-Time (JIT) provisioning** system:
+- **Automatic Provisioning**: In the custom `AdminEmailLoginView`, the backend specifically monitors for the `lgusanpascual.sysadmin@gmail.com` email.
+- **Auto-Correction**: If that administrator record is missing from your local SQLite or PostGIS database, the backend creates it automatically (via `User.objects.create_superuser(...)`) before proceeding with the password check.
+- **Portability**: This allows the code to be "portable" across any new machine; as long as you have the latest code, the login will "just work."
+
+## Quick Start (Windows)
 
 ### 1. Prerequisites
-Ensure you have the following installed on your machine:
-- **Docker Desktop**: For running the PostgreSQL/PostGIS database.
-- **Python (3.11 or 3.12)**: For the backend server.
-- **Node.js (LTS)**: For the frontend development.
-- **QGIS or OSGeo4W**: Required for GeoDjango (GDAL/GEOS libraries). 
-  *   *Note: The project is configured to automatically find these libraries if installed in standard locations like `C:\Program Files\QGIS` or `C:\OSGeo4W`.*
+- Docker Desktop
+- Python 3.11 or 3.12
+- Node.js LTS
+- QGIS or OSGeo4W for GDAL/GEOS support
 
----
+The project can usually detect QGIS or OSGeo4W automatically from standard install paths such as `C:\Program Files\QGIS` or `C:\OSGeo4W`.
 
-### 2. Database Setup (Docker)
-1.  Open your terminal in the project root.
-2.  Start the database and pgAdmin containers:
-    ```bash
-    docker compose up -d
-    ```
-3.  **Wait for the database to be healthy** (`docker compose ps` should show `healthy`).
-4.  Enable the PostGIS extension (required for map features):
-    ```bash
-    docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "CREATE EXTENSION IF NOT EXISTS postgis;"
-    ```
+### 2. Database Setup
+From the project root:
 
----
+```bash
+docker compose up -d
+```
 
-### 3. Backend Setup (Django)
-1.  Navigate to the project root and create a virtual environment:
-    ```bash
-    python -m venv venv
-    ```
-2.  Activate the virtual environment:
-    ```bash
-    # Windows
-    venv\Scripts\activate
-    ```
-3.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-4.  Run migrations:
-    ```bash
-    python manage.py migrate
-    ```
-5.  Start the backend server:
-    ```bash
-    python manage.py runserver
-    ```
-    *Backend running at: `http://127.0.0.1:8000`*
+Wait until the database container is healthy, then enable PostGIS:
 
----
+```bash
+docker exec -it taxfiling-postgis psql -U taxuser -d taxfiling -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+```
 
-### 4. Frontend Setup (React)
-1.  Open a new terminal window and navigate to the `frontend` folder:
-    ```bash
-    cd frontend
-    ```
-2.  Install packages:
-    ```bash
-    npm install
-    ```
-3.  Start the development server:
-    ```bash
-    npm run dev
-    ```
-    *Frontend running at: `http://localhost:5173`*
+### 3. Backend Setup
+From the project root:
 
----
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
 
-### 5. Importing Map Data (.gpkg)
-If you need to import GeoPackage files into the database:
-1.  Ensure QGIS/OSGeo4W is in your system PATH.
-2.  Run the provided PowerShell script to import all maps from `maps/static`:
-    ```powershell
-    powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
-    ```
+Backend URL:
+`http://127.0.0.1:8000`
 
----
+### 4. Frontend Setup
+Open a second terminal:
 
-## 🛠 Features & Configuration
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### Dashboard & Interactive Map
-The Dashboard provides a premium visual analysis of property taxes:
-- **Interactive Lot Map**: View over 24,000 lots individually color-coded by land use (Agri, Res, Comm, Ind).
-- **Mixed-Use Calculation**: Lots with multiple classifications are automatically blended in the map visual.
-- **Revenue Distribution**: Floating bar and pie charts provide real-time aggregation of tax values.
-- **Lot Attributes**: Click any lot on the map to view a detailed popup with owners, ARP numbers, and exact areas.
+Frontend URL:
+`http://localhost:5173`
 
-### Database Access (pgAdmin)
+### 5. Importing GeoPackage Data
+If you need to import `.gpkg` files into PostGIS:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\import_gpkg_to_postgis.ps1
+```
+
+## Authentication
+
+### Current Login Behavior
+- The login screen is admin-only.
+- The app now uses role-based admin authentication only.
+- Admin login accepts `Admin Email or ID`.
+
+### Shared Admin Account
+The system includes an automatic shared thesis/demo admin account:
+
+- Email: `lgusanpascual.sysadmin@gmail.com`
+- Password: `lgusp123`
+
+How it works:
+- When someone logs in using `lgusanpascual.sysadmin@gmail.com`, the Django backend automatically creates or repairs that admin account in the local database if it does not already exist.
+- This means classmates can pull the updated code, run migrations, start the backend, and use the same shared admin credentials even if each laptop has its own separate local database.
+
+Important:
+- This is not real database syncing.
+- It only guarantees that the same admin credentials will exist automatically on each machine running the updated backend code.
+- If someone pulled the code before this change, they must pull the latest backend updates and restart `python manage.py runserver`.
+
+## Features
+
+### Dashboard
+- Interactive lot map for municipal land-use visualization
+- Area classification pie chart
+- Proportional revenue pie chart
+- Revenue breakdown and tax category bar chart
+- Search-driven dashboard map behavior using barangay and PIN inputs
+
+### Mapping
+- Cadastral map view
+- Tax map view
+- Lot-level selection and inspection
+- Barangay and section-based navigation
+
+### Assessment Data
+- Barangay-level assessment table
+- Market value and assessed value summaries
+- Real property tax reporting support
+
+## pgAdmin Access
 - URL: `http://localhost:5050`
 - Login Email: `admin@example.com`
 - Login Password: `admin123`
-- **To Connect to DB**: Register a new server with:
-  - **Host**: `db` (if connecting from within Docker/pgAdmin) or `localhost` (if from host tools).
-  - **Port**: `5432` (internal) or **`5433`** (external host port).
-  - **User**: `taxuser`
-  - **Password**: `pops1245`
 
----
+Database connection values:
+- Host: `db` from inside Docker/pgAdmin, or `localhost` from host tools
+- Port: `5432` internally, or `5433` on the host
+- User: `taxuser`
+- Password: `pops1245`
 
-## ❓ Troubleshooting
+## Troubleshooting
 
-### "No space left on device" (Errno 28)
-This indicates your `C:` drive or Docker volume is full. 
-- **Fix**: Clear unused Docker images/containers (`docker system prune`) or free up host disk space.
+### Frontend loads but page is blank
+- Hard refresh the browser with `Ctrl+F5`
+- Restart the frontend dev server:
 
-### "Could not find ogr2ogr.exe" or GDAL Errors
-These errors mean the project couldn't find your QGIS or OSGeo4W installation. 
-- **Fix**: Ensure QGIS is installed. The project searches `C:\Program Files\QGIS*` and `C:\OSGeo4W*` automatically. If installed elsewhere, set the `OSGEO4W_ROOT` environment variable.
+```bash
+cd frontend
+npm run dev
+```
 
-### Database Connection Failure
-- Ensure Docker Desktop is running.
-- If you see `psycopg.OperationalError: connection to server at "localhost" (127.0.0.1), port 5433 failed`, it means the `db` container is not healthy or is still starting. check `docker compose logs db`.
+- Restart the Django backend:
 
----
+```bash
+python manage.py runserver
+```
 
-## 📱 Project Structure
-- `/taxfiling`: Django project settings and core.
-- `/maps`: Backend app handling geographic data and API.
-- `/frontend`: React + Vite application.
-- `/scripts`: Database helper scripts and import tools.
+### Shared admin does not work on another laptop
+Make sure that laptop:
+1. Pulled the latest code
+2. Ran `python manage.py migrate`
+3. Restarted the Django backend
+
+Then log in with:
+- `lgusanpascual.sysadmin@gmail.com`
+- `lgusp123`
+
+### GDAL / GeoDjango errors
+If the project cannot find `ogr2ogr.exe` or related GIS libraries:
+- confirm QGIS or OSGeo4W is installed
+- if needed, set `OSGEO4W_ROOT` manually
+
+### Database connection failure
+- Ensure Docker Desktop is running
+- Check `docker compose ps`
+- If needed, inspect logs with:
+
+```bash
+docker compose logs db
+```
+
+## Project Structure
+- `/taxfiling`: Django project settings
+- `/maps`: backend app, auth, GIS APIs, and reporting logic
+- `/frontend`: React + Vite frontend
+- `/scripts`: database and import helper scripts

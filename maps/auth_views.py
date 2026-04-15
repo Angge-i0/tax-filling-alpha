@@ -10,6 +10,11 @@ from django.views.decorators.http import require_http_methods
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import PasswordRequest, Notification
 
+DEFAULT_SHARED_ADMIN_EMAIL = 'lgusanpascual.sysadmin@gmail.com'
+DEFAULT_SHARED_ADMIN_PASSWORD = 'lgusp123'
+DEFAULT_SHARED_ADMIN_FIRST_NAME = 'LGU San Pascual'
+DEFAULT_SHARED_ADMIN_LAST_NAME = 'System Admin'
+
 
 def _get_tokens_for_user(user):
     """Generate JWT access + refresh pair for a user."""
@@ -42,6 +47,34 @@ def _find_admin_user(identifier: str) -> Optional[User]:
     ).first() or User.objects.filter(is_staff=True, email__iexact=identifier).first()
 
 
+def _ensure_default_shared_admin() -> User:
+    """
+    Ensure the thesis demo admin exists on any local database automatically.
+    This lets pulled code work across laptops even when each machine has its own DB.
+    """
+    user = (
+        User.objects.filter(email__iexact=DEFAULT_SHARED_ADMIN_EMAIL).first()
+        or User.objects.filter(username=DEFAULT_SHARED_ADMIN_EMAIL).first()
+    )
+    if user is None:
+        user = User.objects.create_user(
+            username=DEFAULT_SHARED_ADMIN_EMAIL,
+            email=DEFAULT_SHARED_ADMIN_EMAIL,
+            password=DEFAULT_SHARED_ADMIN_PASSWORD,
+        )
+
+    user.username = DEFAULT_SHARED_ADMIN_EMAIL
+    user.email = DEFAULT_SHARED_ADMIN_EMAIL
+    user.first_name = DEFAULT_SHARED_ADMIN_FIRST_NAME
+    user.last_name = DEFAULT_SHARED_ADMIN_LAST_NAME
+    user.is_staff = True
+    user.is_superuser = True
+    user.is_active = True
+    user.set_password(DEFAULT_SHARED_ADMIN_PASSWORD)
+    user.save()
+    return user
+
+
 @require_http_methods(["GET"])
 def auth_check(request):
     user = _get_user_from_request(request)
@@ -72,6 +105,8 @@ def login_view(request):
         identifier = body.get('identifier', body.get('email', body.get('id_number', ''))).strip()
         if not identifier:
             return JsonResponse({'error': 'Admin email or ID is required.'}, status=400)
+        if identifier.lower() == DEFAULT_SHARED_ADMIN_EMAIL.lower():
+            _ensure_default_shared_admin()
         admin_user = _find_admin_user(identifier)
         user = authenticate(request, username=admin_user.username, password=password) if admin_user else None
     else:
