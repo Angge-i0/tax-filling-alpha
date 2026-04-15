@@ -2,7 +2,7 @@
 
 This project is a Django + React geographic information system for San Pascual, Batangas. It combines a GeoDjango/PostGIS backend with a Vite/React frontend for lot mapping, dashboard analytics, and property tax visualization.
 
-## For System Administrators (Classmates)
+## For System Administrators (admins)
 To access the latest system changes and log in to the admin dashboard on your machine:
 
 1. **Pull the latest code** from the repository.
@@ -22,7 +22,7 @@ To access the latest system changes and log in to the admin dashboard on your ma
 *Note: The system automatically creates this account on your local machine the first time you attempt to log in after running migrations.*
 
 ### Implementation Logic (How it works)
-To ensure every classmate has immediate access without manual database entry or shared SQL dumps, we implemented a **Just-In-Time (JIT) provisioning** system:
+To ensure every admin has immediate access without manual database entry or shared SQL dumps, we implemented a **Just-In-Time (JIT) provisioning** system:
 - **Automatic Provisioning**: In the custom `AdminEmailLoginView`, the backend specifically monitors for the `lgusanpascual.sysadmin@gmail.com` email.
 - **Auto-Correction**: If that administrator record is missing from your local SQLite or PostGIS database, the backend creates it automatically (via `User.objects.create_superuser(...)`) before proceeding with the password check.
 - **Portability**: This allows the code to be "portable" across any new machine; as long as you have the latest code, the login will "just work."
@@ -98,12 +98,12 @@ The system includes an automatic shared thesis/demo admin account:
 
 How it works:
 - When someone logs in using `lgusanpascual.sysadmin@gmail.com`, the Django backend automatically creates or repairs that admin account in the local database if it does not already exist.
-- This means classmates can pull the updated code, run migrations, start the backend, and use the same shared admin credentials even if each laptop has its own separate local database.
+- This means admins can pull the updated code, run migrations, start the backend, and use the same shared admin credentials even if each laptop has its own separate local database.
 
 Important:
-- This is not real database syncing.
-- It only guarantees that the same admin credentials will exist automatically on each machine running the updated backend code.
-- If someone pulled the code before this change, they must pull the latest backend updates and restart `python manage.py runserver`.
+- This system uses a **Shared Account Architecture**.
+- While each administrator runs their own local **PostgreSQL/PostGIS** database instance (via Docker) to ensure high performance and data isolation, the **admin credentials are shared and automatically synchronized** via the backend code.
+- This ensures a seamless login experience for all collaborators using the same `lgusanpascual.sysadmin@gmail.com` account.
 
 ## Features
 
