@@ -60,6 +60,7 @@ const pieCalloutPlugin = {
 
     const { ctx, width } = chart;
     const baseFont = ChartJS.defaults.font.family || "'Plus Jakarta Sans', sans-serif";
+    const decimalPlaces = chart?.options?.plugins?.pieCalloutPlugin?.decimalPlaces ?? 2;
 
     ctx.save();
     ctx.font = `800 12px ${baseFont}`;
@@ -74,7 +75,7 @@ const pieCalloutPlugin = {
       if (!value) return;
 
       const p = (value / total) * 100;
-      const percentageText = p.toFixed(1) + '%';
+      const percentageText = p.toFixed(decimalPlaces) + '%';
       const angle = (arc.startAngle + arc.endAngle) / 2;
       const color = (Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor);
       const dirX = Math.cos(angle);
@@ -353,16 +354,16 @@ const STYLES = `
   .dash-upper-section { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(22rem, 0.8fr); gap: 1.4rem; align-items: stretch; }
   .dash-map-stage { display: flex; flex-grow: 1; }
   .dash-map-panel { position: relative; background: #fff; border-radius: 1rem; border: 1px solid #dce7f4; overflow: hidden; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); flex-grow: 1; min-height: 44rem; }
-  .dash-map-summary { position: absolute; top: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); min-width: 16rem; }
+  .dash-map-summary { position: absolute; top: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); width: 22.5rem; }
   .dash-floating-chart { position: absolute; bottom: 0.9rem; right: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; min-width: 18rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); }
-  .dash-left-floating-chart { position: absolute; bottom: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); min-width: 16rem; }
+  .dash-left-floating-chart { position: absolute; bottom: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); width: 20.5rem; }
   .dash-map-summary h3 { margin: 0; font-size: 0.95rem; font-weight: 800; color: #16345c; }
   .dash-map-summary p { margin: 0.25rem 0 0.65rem; font-size: 0.72rem; color: #6b7f99; line-height: 1.35; }
   .dash-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin-bottom: 0.65rem; }
   .dash-summary-pill { background: #ffffff; border: 2px solid #dde8f3; border-radius: 0.8rem; padding: 0.55rem 0.6rem; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
   .dash-summary-pill:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12); }
-  .dash-summary-pill label { display: block; font-size: 0.48rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .dash-summary-pill strong { font-size: 0.7rem; word-break: break-all; line-height: 1.1; display: block; margin-top: 0.1rem; }
+  .dash-summary-pill label { display: block; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.24rem; line-height: 1.2; white-space: normal; overflow: visible; text-overflow: clip; min-height: 1.45rem; }
+  .dash-summary-pill strong { font-size: 0.9rem; word-break: normal; line-height: 1.15; display: block; margin-top: 0.1rem; }
   .dash-summary-value { border-top: 1px solid #e5eef6; padding-top: 0.65rem; margin-top: 0.65rem; display: grid; gap: 0.5rem; }
   .dash-summary-row { display: flex; justify-content: space-between; gap: 0.9rem; align-items: center; }
   .dash-summary-row span { font-size: 0.54rem; font-weight: 800; color: #71839a; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -433,8 +434,7 @@ const STYLES = `
     left: 0.9rem;
     bottom: 0.9rem;
     width: min(15.5rem, calc(100% - 10rem));
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
+    background: #ffffff;
     border-radius: 0.9rem;
     padding: 0.8rem 0.9rem;
     z-index: 1000;
@@ -513,6 +513,7 @@ export default function MainDashboard() {
     maintainAspectRatio: false,
     layout: { padding: { top: 36, right: 48, bottom: 36, left: 48 } },
     plugins: {
+      pieCalloutPlugin: { decimalPlaces: 2 },
       legend: { display: false },
       tooltip: {
         backgroundColor: '#ffffff',
@@ -634,13 +635,14 @@ export default function MainDashboard() {
     maintainAspectRatio: false,
     layout: { padding: { top: 18, right: 98, bottom: 18, left: 98 } },
     plugins: {
+      pieCalloutPlugin: { decimalPlaces: 0 },
       legend: { display: false },
       tooltip: {
         callbacks: {
           label(context) {
             const total = context.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0);
             const value = Number(context.parsed || 0);
-            const percent = total ? ((value / total) * 100).toFixed(1) : '0.0';
+            const percent = total ? ((value / total) * 100).toFixed(0) : '0';
             return `${percent}%`;
           },
           title() {
@@ -713,13 +715,13 @@ export default function MainDashboard() {
                 <MapControls onCenter={handleCenter} />
               </MapContainer>
 
-                <div className="dash-map-summary" style={{ width: '18.5rem' }}>
+                <div className="dash-map-summary">
                   <h3>{selectedLot?.pin ? `Lot ${selectedLot.pin}` : 'Lot Overview of San Pascual, Batangas'}</h3>
                   <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
-                    Based on Land Area Type Classification (sqm).
+                    Based on land area type classification (sqm).
                     {selectedLot 
                       ? ` Calculation for lot ${selectedLot.pin}.` 
-                      : ' Showing the **Total Aggregate Area** for all properties in the municipality.'}
+                      : ' Showing the total aggregate area for all properties in the municipality.'}
                   </p>
                   <div className="dash-summary-grid">
                     <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
@@ -748,7 +750,7 @@ export default function MainDashboard() {
                 </div>
               </div>
 
-              <div className="dash-left-floating-chart" data-has-lot={!!selectedLot} style={{ width: '18.5rem' }}>
+              <div className="dash-left-floating-chart" data-has-lot={!!selectedLot}>
                 <div className="dash-chart-caption">
                   {currentAreaInfo?.isLot ? `Area Classification (Lot ${selectedLot?.pin})` : 'Area Classification (Municipal)'}
                 </div>

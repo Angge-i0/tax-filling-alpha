@@ -33,6 +33,15 @@ def _get_user_from_request(request) -> Optional[User]:
     return None
 
 
+def _find_admin_user(identifier: str) -> Optional[User]:
+    identifier = (identifier or '').strip()
+    if not identifier:
+        return None
+    return User.objects.filter(is_staff=True).filter(
+        username=identifier
+    ).first() or User.objects.filter(is_staff=True, email__iexact=identifier).first()
+
+
 @require_http_methods(["GET"])
 def auth_check(request):
     user = _get_user_from_request(request)
@@ -60,12 +69,11 @@ def login_view(request):
         return JsonResponse({'error': 'Password is required.'}, status=400)
 
     if role == 'admin':
-        id_number = body.get('id_number', '').strip()
-        if not id_number:
-            return JsonResponse({'error': 'ID Number is required.'}, status=400)
-        if not id_number.isdigit():
-            return JsonResponse({'error': 'ID Number must be numeric.'}, status=400)
-        user = authenticate(request, username=id_number, password=password)
+        identifier = body.get('identifier', body.get('email', body.get('id_number', ''))).strip()
+        if not identifier:
+            return JsonResponse({'error': 'Admin email or ID is required.'}, status=400)
+        admin_user = _find_admin_user(identifier)
+        user = authenticate(request, username=admin_user.username, password=password) if admin_user else None
     else:
         email = body.get('email', '').strip()
         if not email:
@@ -340,8 +348,8 @@ def forgot_password_request(request):
         message = body.get('message', '')
 
         if role == 'admin':
-            id_number = body.get('id_number', '').strip()
-            user = User.objects.filter(username=id_number, is_staff=True).first()
+            identifier = body.get('identifier', body.get('email', body.get('id_number', ''))).strip()
+            user = _find_admin_user(identifier)
         else:
             email = body.get('email', '').strip()
             user = User.objects.filter(email=email).first()
@@ -463,8 +471,8 @@ def respond_password_request(request, req_id):
             f"Admin Response: {response_msg}\n\n"
             f"--- How to Reset Your Password ---\n"
             f"1. Go to the E-TaxMap Login Screen.\n"
-            f"2. Click the blue BELL ICON in the top-right corner of the login card.\n"
-            f"3. Enter your ID/Email to check your status.\n"
+            f"2. Click 'Forgot Password?' or 'Need account help?'.\n"
+            f"3. Enter your account email or admin ID to check your status.\n"
             f"4. Once approved, the 'Reset Password' form will appear. Enter your new password and click 'Reset'.\n\n"
             f"Regards,\n"
             f"San Pascual E-TaxMap Team"
@@ -540,8 +548,8 @@ def check_request_status(request):
         role = body.get('role', 'user')
         
         if role == 'admin':
-            id_number = body.get('id_number', '').strip()
-            user = User.objects.filter(username=id_number, is_staff=True).first()
+            identifier = body.get('identifier', body.get('email', body.get('id_number', ''))).strip()
+            user = _find_admin_user(identifier)
         else:
             email = body.get('email', '').strip()
             user = User.objects.filter(email=email).first()
@@ -581,8 +589,8 @@ def reset_password_public(request):
         new_password = body.get('new_password')
         
         if role == 'admin':
-            id_number = body.get('id_number', '').strip()
-            user = User.objects.filter(username=id_number, is_staff=True).first()
+            identifier = body.get('identifier', body.get('email', body.get('id_number', ''))).strip()
+            user = _find_admin_user(identifier)
         else:
             email = body.get('email', '').strip()
             user = User.objects.filter(email=email).first()

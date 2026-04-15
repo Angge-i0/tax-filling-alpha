@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-    LayoutDashboard, Users, Map, Eye, HelpCircle, Info, LogOut,
-    ChevronDown, ChevronRight, BarChart3, Layers, Search
+    LayoutDashboard, Map, HelpCircle, Info, LogOut,
+    ChevronDown, ChevronRight, Layers, Search
 } from 'lucide-react';
 import logoImg from './assets/Municipality of San Pascual.jpg';
 
@@ -57,7 +57,7 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
             {/* Branding / Footer */}
             <div className="sb-branding">
                 <div className="sb-branding-lgu">LGU: SAN PASCUAL</div>
-                <div className="sb-branding-gadc">Developed by the Office of GADC - GIS Applications Development Center</div>
+                <div className="sb-branding-gadc">Developed by the GIS Applications Development Center (GADC) of Batangas State University - TNEU</div>
             </div>
 
             {/* Footer */}
