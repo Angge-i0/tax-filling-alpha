@@ -83,22 +83,22 @@ def geojson_data(request):
     Serves municipality-level PIM boundaries from PostGIS.
     """
     try:
-        rows = (
-            PimSection.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
+        rows = list(
+            PimBarangayBoundary.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
             .values('barangay_name')
             .annotate(geom=Union('geom'))
             .order_by('barangay_name')
         )
-        rows = list(rows)
         if not rows:
-            rows = list(
-                PimBarangayBoundary.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
+            rows = (
+                PimSection.objects.filter(geom__intersects=SAN_PASCUAL_BBOX)
                 .values('barangay_name')
                 .annotate(geom=Union('geom'))
                 .order_by('barangay_name')
             )
+            rows = list(rows)
         if not rows:
-            return JsonResponse({'error': 'No PIM boundaries found in PostGIS.'}, status=404)
+            return JsonResponse({'error': 'No PIM boundaries found.'}, status=404)
 
         brgy_colors = {b.name.lower(): b.color for b in Barangay.objects.all()}
         by_name = {}

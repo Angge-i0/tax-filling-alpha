@@ -175,21 +175,21 @@ WHERE t.geom IS NOT NULL;
     Write-Warning "BarangayBoundaryIndexMap.gpkg not found in $cadDir. Skipping CAD import."
 }
 
-Write-Host "Importing PIM barangay boundary files..."
-Get-ChildItem $pimDir -Filter *.gpkg -File | ForEach-Object {
-    $file = $_.FullName
-    $source = $_.Name
-    $barangay = Get-NormalizedBarangayName $_
-    Import-OneFile $file
+Write-Host "Importing PIM barangay boundary index map..."
+$indexMapPath = Join-Path $cadDir "BarangayBoundaryIndexMap.gpkg"
+if (Test-Path $indexMapPath) {
+    $source = "BarangayBoundaryIndexMap.gpkg"
+    Import-OneFile $indexMapPath
 
-    $barangaySql = Escape-SqlLiteral $barangay
     $sourceSql = Escape-SqlLiteral $source
     Invoke-Psql @"
 INSERT INTO pim_barangay_boundaries (barangay_name, source_file, properties, geom)
-SELECT '$barangaySql', '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
+SELECT "Barangay", '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
 FROM tmp_import t
 WHERE t.geom IS NOT NULL;
 "@
+} else {
+    Write-Warning "BarangayBoundaryIndexMap.gpkg not found for PIM boundaries. Skipping."
 }
 
 Write-Host "Importing PIM files (supports old and new folder layouts)..."
