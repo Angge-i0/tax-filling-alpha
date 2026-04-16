@@ -2469,13 +2469,6 @@ body {
   gap: 0.5rem;
 }
 
-.map-center-control {
-  position: absolute;
-  top: 1.5rem;
-  left: 5rem;
-  z-index: 1000;
-  pointer-events: auto;
-}
 
 .cad-legend {
   background: white;

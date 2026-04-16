@@ -400,11 +400,9 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       {!isStatic && showCustomControls && (
         <>
           <div className="map-zoom-controls">
-            <button className="map-control-btn" onClick={() => map.zoomIn()}><Plus size={20} /></button>
-            <button className="map-control-btn" onClick={() => map.zoomOut()}><Minus size={20} /></button>
-          </div>
-          <div className="map-center-control">
-            <button className="map-control-btn" onClick={handleCenter}><Locate size={20} /></button>
+            <button className="map-control-btn" onClick={() => map.zoomIn()} title="Zoom In"><Plus size={20} /></button>
+            <button className="map-control-btn" onClick={() => map.zoomOut()} title="Zoom Out"><Minus size={20} /></button>
+            <button className="map-control-btn" onClick={handleCenter} title="Recenter Map"><Locate size={20} /></button>
           </div>
         </>
       )}
