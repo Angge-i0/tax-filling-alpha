@@ -10,7 +10,7 @@ from .views import (
 from .pim_views import (
     pim_barangay_list, pim_barangay_geojson, pim_section_list,
     pim_section_lots_geojson, pim_enlargement_geojson, pim_lot_adjustment,
-    pim_lot_search
+    pim_lot_search, pim_barangay_lots_geojson
 )
 from .maintenance_views import maintenance_files, maintenance_delete_file
 
@@ -34,6 +34,7 @@ urlpatterns = [
     # ── New Folder-Based PIM API Routes ──
     path('api/pim/barangays/', pim_barangay_list, name='pim_barangay_list'),
     path('api/pim/barangays/<str:barangay_name>/geojson/', pim_barangay_geojson, name='pim_barangay_geojson'),
+    path('api/pim/barangays/<str:barangay_name>/lots/', pim_barangay_lots_geojson, name='pim_barangay_lots_geojson'),
     path('api/pim/barangays/<str:barangay_name>/sections/', pim_section_list, name='pim_section_list'),
     path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/lots/', pim_section_lots_geojson, name='pim_section_lots_geojson'),
     path('api/pim/barangays/<str:barangay_name>/sections/<int:section_number>/enlargement/', pim_enlargement_geojson, name='pim_enlargement_geojson'),

@@ -46,7 +46,7 @@ export default function Sidebar({ isStaff, activePage, onNavigate, onLogout }) {
                             <span className="sb-label">Cadastral Map</span>
                         </button>
                         <button className={`sb-sub-item ${activePage === 'map-pim' ? 'active' : ''}`} onClick={() => handleNav('map-pim')}>
-                            <Search size={18} className="sb-icon" />
+                            <Map size={18} className="sb-icon" />
                             <span className="sb-label">Tax Map</span>
                         </button>
                     </div>

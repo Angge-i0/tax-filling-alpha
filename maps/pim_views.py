@@ -77,6 +77,11 @@ COLUMN_MAP = {
     'arp no. ': 'arp_no',
     'property owner ': 'owner',
     'property of owner': 'owner',
+    'lot no.': 'lot_no',
+    'lot no': 'lot_no',
+    'lot_no': 'lot_no',
+    'section': 'section',
+    'barangay': 'barangay',
 }
 
 IGNORE_COLUMNS = {'1', 'geometry', 'geom', 'id', 'fid'}
@@ -636,6 +641,57 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
             # Keep section-level flag for UI flow:
             # true if either a marker exists in lots or an enlargement file exists.
             'has_enlargement': bool(marker_count > 0 or section_has_enlargement_file),
+        },
+    }
+    return JsonResponse(geojson)
+
+
+@api_login_required
+@require_http_methods(["GET"])
+def pim_barangay_lots_geojson(request, barangay_name):
+    """
+    Returns ALL lots for a given barangay (across all sections).
+    Used for overlaying lots on the Cadastral Map.
+    """
+    lots_qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
+    lots_qs = lots_qs.order_by('section_number', 'id')
+
+    if not lots_qs.exists():
+        return JsonResponse({'error': f'Barangay "{barangay_name}" lots not found.'}, status=404)
+
+    # Fetch all adjustments for these lots at once
+    pins = []
+    lots_list = list(lots_qs)
+    for row in lots_list:
+        p = row.properties or {}
+        pin = p.get('pin') or p.get('PIN')
+        if pin:
+            pins.append(str(pin).strip())
+    adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.filter(pin__in=pins)}
+
+    features = []
+    for row in lots_list:
+        raw_props = row.properties or {}
+        pin_value = str(raw_props.get('pin') or raw_props.get('PIN') or '').strip()
+        
+        # Consistent preparation
+        props = _prepare_lot_data(
+            raw_props, 
+            adj_rate=adj_map.get(pin_value),
+            barangay_name=canonical_name,
+            use_assessment_classification=True
+        )
+        props['barangay'] = canonical_name
+        props['section_number'] = row.section_number
+        
+        features.append(_feature_from_geom(row.geom, props))
+
+    geojson = {
+        'type': 'FeatureCollection',
+        'features': features,
+        'metadata': {
+            'barangay': canonical_name,
+            'lot_count': len(features),
         },
     }
     return JsonResponse(geojson)

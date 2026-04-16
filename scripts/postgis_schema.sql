@@ -53,3 +53,9 @@ CREATE INDEX IF NOT EXISTS pim_enlargements_geom_gix
     ON pim_enlargements USING GIST (geom);
 CREATE INDEX IF NOT EXISTS pim_enlargements_barangay_section_idx
     ON pim_enlargements (barangay_name, section_number);
+
+-- JSONB Indices for Search performance
+CREATE INDEX IF NOT EXISTS pim_sections_properties_gin_idx ON pim_sections USING GIN (properties);
+CREATE INDEX IF NOT EXISTS pim_sections_pin_idx ON pim_sections ((properties->>'pin'));
+CREATE INDEX IF NOT EXISTS pim_sections_PIN_upper_idx ON pim_sections ((properties->>'PIN'));
+CREATE INDEX IF NOT EXISTS pim_enlargements_properties_gin_idx ON pim_enlargements USING GIN (properties);

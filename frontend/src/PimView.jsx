@@ -15,38 +15,38 @@ const ALL_BARANGAYS = [
 ];
 
 const COMBO_MAP = {
-  'AGRI': { hex: '#22c55e', label: 'AGRICULTURE' },
-  'COMM': { hex: '#fbbf24', label: 'COMMERCIAL' },
-  'INDUSTRIAL': { hex: '#3b82f6', label: 'INDUSTRIAL' },
-  'RES': { hex: '#ef4444', label: 'RESIDENTIAL' },
-  'AGRI_RES': { hex: '#a855f7', label: 'AGRI + RES' },
-  'AGRI_COMM': { hex: '#a3e635', label: 'AGRI + COMM' },
-  'AGRI_INDUSTRIAL': { hex: '#06b6d4', label: 'AGRI + INDUSTRIAL' },
-  'COMM_RES': { hex: '#f97316', label: 'COMM + RES' },
-  'COMM_INDUSTRIAL': { hex: '#ec4899', label: 'COMM + INDUSTRIAL' },
-  'INDUSTRIAL_RES': { hex: '#94a3b8', label: 'INDUSTRIAL + RES' },
-  'AGRI_COMM_RES': { hex: '#92400e', label: 'AGRI + COMM + RES' },
-  'AGRI_COMM_INDUSTRIAL': { hex: '#0d9488', label: 'AGRI + COMM + INDUSTRIAL' },
-  'AGRI_INDUSTRIAL_RES': { hex: '#7f1d1d', label: 'AGRI + INDUSTRIAL + RES' },
-  'COMM_INDUSTRIAL_RES': { hex: '#eab308', label: 'COMM + INDUSTRIAL + RES' },
-  'AGRI_COMM_INDUSTRIAL_RES': { hex: '#000000', label: 'MULTIPLE CLASSIFICATION' },
-  'UNCLASSIFIED': { hex: '#ff00ff', label: 'UNCLASSIFIED / NO DATA' } 
+    'AGRI': { hex: '#22c55e', label: 'AGRICULTURE' },
+    'COMM': { hex: '#fbbf24', label: 'COMMERCIAL' },
+    'INDUSTRIAL': { hex: '#3b82f6', label: 'INDUSTRIAL' },
+    'RES': { hex: '#ef4444', label: 'RESIDENTIAL' },
+    'AGRI_RES': { hex: '#a855f7', label: 'AGRI + RES' },
+    'AGRI_COMM': { hex: '#a3e635', label: 'AGRI + COMM' },
+    'AGRI_INDUSTRIAL': { hex: '#06b6d4', label: 'AGRI + INDUSTRIAL' },
+    'COMM_RES': { hex: '#f97316', label: 'COMM + RES' },
+    'COMM_INDUSTRIAL': { hex: '#ec4899', label: 'COMM + INDUSTRIAL' },
+    'INDUSTRIAL_RES': { hex: '#94a3b8', label: 'INDUSTRIAL + RES' },
+    'AGRI_COMM_RES': { hex: '#92400e', label: 'AGRI + COMM + RES' },
+    'AGRI_COMM_INDUSTRIAL': { hex: '#0d9488', label: 'AGRI + COMM + INDUSTRIAL' },
+    'AGRI_INDUSTRIAL_RES': { hex: '#7f1d1d', label: 'AGRI + INDUSTRIAL + RES' },
+    'COMM_INDUSTRIAL_RES': { hex: '#eab308', label: 'COMM + INDUSTRIAL + RES' },
+    'AGRI_COMM_INDUSTRIAL_RES': { hex: '#000000', label: 'MULTIPLE CLASSIFICATION' },
+    'UNCLASSIFIED': { hex: '#ff00ff', label: 'UNCLASSIFIED / NO DATA' }
 };
 
 function getLotComboKey(props) {
-  const types = [];
-  const safeParse = (v) => {
-    if (!v) return 0;
-    if (typeof v === 'number') return v;
-    const match = String(v).replace(/,/g, '').match(/[-+]?\d*\.?\d+/);
-    return match ? parseFloat(match[0]) : 0;
-  };
-  if (safeParse(props.area_agri) > 0) types.push('AGRI');
-  if (safeParse(props.area_comml) > 0) types.push('COMM');
-  if (safeParse(props.area_indl) > 0) types.push('INDUSTRIAL');
-  if (safeParse(props.area_res) > 0) types.push('RES');
-  if (types.length === 0) return 'UNCLASSIFIED';
-  return types.sort().join('_');
+    const types = [];
+    const safeParse = (v) => {
+        if (!v) return 0;
+        if (typeof v === 'number') return v;
+        const match = String(v).replace(/,/g, '').match(/[-+]?\d*\.?\d+/);
+        return match ? parseFloat(match[0]) : 0;
+    };
+    if (safeParse(props.area_agri) > 0) types.push('AGRI');
+    if (safeParse(props.area_comml) > 0) types.push('COMM');
+    if (safeParse(props.area_indl) > 0) types.push('INDUSTRIAL');
+    if (safeParse(props.area_res) > 0) types.push('RES');
+    if (types.length === 0) return 'UNCLASSIFIED';
+    return types.sort().join('_');
 }
 
 export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchBrgy = '', searchPin = '' }) {
@@ -726,15 +726,15 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                             overflowY: 'auto',
                             width: '200px'
                         }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', marginBottom: '0.5rem', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 CLASSIFICATION
-                                {filterClass && <button onClick={() => setFilterClass(null)} style={{ border:'none', background:'none', color:'#ef4444', cursor:'pointer', fontSize:'0.6rem'}}>RESET</button>}
+                                {filterClass && <button onClick={() => setFilterClass(null)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.6rem' }}>RESET</button>}
                             </div>
                             {Object.entries(COMBO_MAP).map(([key, cfg]) => (
-                                <div 
-                                    key={key} 
+                                <div
+                                    key={key}
                                     onClick={() => setFilterClass(key === filterClass ? null : key)}
-                                    style={{ 
+                                    style={{
                                         display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#475569', cursor: 'pointer',
                                         opacity: filterClass && !key.includes(filterClass) ? 0.3 : 1,
                                         background: filterClass === key ? '#f1f5f9' : 'transparent',

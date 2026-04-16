@@ -4,12 +4,23 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Plus, Minus, Maximize, Locate } from 'lucide-react';
 
+const LGU_CENTER = [13.7937, 121.0478]; // San Pascual, Batangas center
+
 // Safer GeoJSON wrapper to catch errors during feature processing
-function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   const map = useMap()
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
   const lastFlyPinRef = useRef(null)
+
+  // Ensure high-priority pane for lots
+  useEffect(() => {
+    if (map && !map.getPane('parcels-pane')) {
+      const pane = map.createPane('parcels-pane');
+      pane.style.zIndex = '450';
+      pane.style.pointerEvents = 'none'; // We'll manage events at layer level
+    }
+  }, [map])
 
   const formatPinShort = (pinValue) => {
     if (pinValue === null || pinValue === undefined) return 'N/A';
@@ -43,7 +54,10 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   }, [selectedFeature])
 
   // Fit bounds when data changes
-  const fitKey = layerKey || `fit-${geoData?.features?.length || 0}`
+  // We keep fitKey stable (not including selectedFeaturePin) to prevent 
+  // the map from jumping back/re-fitting bounds every time a single lot is selected.
+  const fitKey = layerKey || `fit-${geoData?.features?.length || 0}`;
+  
   useEffect(() => {
     if (geoData && geoJsonRef.current) {
       try {
@@ -145,208 +159,114 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
             if (layer.getBounds) {
               const b = layer.getBounds();
               if (b && typeof b.isValid === 'function' && b.isValid()) {
-                map.flyToBounds(b, { padding: [20, 20], duration: 1 });
+                map.flyToBounds(b, { padding: isCad ? [5, 5] : [20, 20], duration: 1 });
               }
             } else if (layer.getLatLng) {
-              map.flyTo(layer.getLatLng(), map.getZoom(), { duration: 1 });
+              map.flyTo(layer.getLatLng(), isCad ? 18 : 16, { duration: 1 });
             }
           }
         });
       } catch (e) {
-        console.warn("Selection fly error:", e);
+        console.warn("Feature zoom error:", e);
       }
     }
-  }, [selectedFeature, selectedFeaturePin, map, isStatic])
-
-  // Update styles for selection
-  useEffect(() => {
-    if (geoJsonRef.current) {
-      try {
-        geoJsonRef.current.eachLayer((layer) => {
-          const layerPin = getPin(layer.feature);
-          const isSelected = selectedFeaturePin ? layerPin === selectedFeaturePin : (selectedFeature && layer.feature === selectedFeature);
-          const props = layer.feature?.properties || {};
-          const defaultColor = props.section_color || props.color || '#3388ff';
-          const selectedBorder = '#fbbf24'; // Bright Amber
-          const selectedFill = '#ffff00';   // Bright Yellow
-          const selectedOpacity = 0.85;
-
-          if (isSelected) {
-            layer.setStyle({
-              fillOpacity: selectedOpacity,
-              weight: 5,
-              color: selectedBorder,
-              fillColor: selectedFill,
-              className: 'selected-feature-pulse',
-              dashArray: '10, 10'
-            });
-            layer.bringToFront();
-          } else if (isCad) {
-            layer.setStyle({
-              fillOpacity: 0.5,
-              weight: 1.5,
-              opacity: 0.8,
-              color: '#ffffff',
-              fillColor: '#3b82f6'
-            });
-          } else {
-            const featureColor = props.color || props.section_color || '#3388ff';
-            layer.setStyle({
-              fillOpacity: selectedFeature ? 0.35 : 0.75,
-              weight: selectedFeature ? 1.5 : 2,
-              opacity: 0.8,
-              color: '#ffffff',
-              fillColor: featureColor
-            });
-          }
-        });
-      } catch (e) {
-        console.error("Style update error:", e);
-      }
-    }
-  }, [selectedFeature, isCad, legend])
-
-  const onEachFeature = (feature, layer) => {
-    if (!feature) return;
-    const props = feature.properties || {};
-
-    layer.on('click', (e) => {
-      L.DomEvent.stopPropagation(e);
-      // Always clear any previously opened enlargement popup.
-      map.closePopup();
-      onFeatureSelect(feature);
-      if (props.has_enlargement) {
-        layer.openPopup();
-      }
-    });
-
-    // Safe Tooltip Binding
-    try {
-      if (props.hasOwnProperty('section_number') && !props.hasOwnProperty('pin') && !props.hasOwnProperty('PIN')) {
-        layer.bindTooltip(`<b>${props.section_number}</b>`, {
-          permanent: true,
-          direction: 'center',
-          className: 'section-tooltip'
-        });
-      } else if (props.hasOwnProperty('pin') || props.hasOwnProperty('PIN') || props.hasOwnProperty('owner')) {
-        const pin = props.pin || props.PIN || 'N/A';
-        const pinShort = formatPinShort(pin);
-        layer.bindTooltip(`${pinShort}`, {
-          permanent: true,
-          direction: 'center',
-          className: 'lot-tooltip'
-        });
-        if (props.has_enlargement) {
-          const popupWrap = L.DomUtil.create('div');
-          const popupTitle = L.DomUtil.create('b', '', popupWrap);
-          popupTitle.textContent = 'Enlargement available';
-          popupWrap.appendChild(document.createElement('br'));
-
-          const popupButton = L.DomUtil.create('button', 'popup-enlarge-btn', popupWrap);
-          popupButton.type = 'button';
-          popupButton.textContent = 'SEE ENLARGEMENT';
-          popupButton.style.marginTop = '0.375rem';
-          popupButton.style.padding = '0.375rem 0.625rem';
-          popupButton.style.border = '0';
-          popupButton.style.borderRadius = '0.375rem';
-          popupButton.style.background = '#d97706';
-          popupButton.style.color = '#fff';
-          popupButton.style.fontWeight = '700';
-          popupButton.style.cursor = 'pointer';
-
-          L.DomEvent.disableClickPropagation(popupWrap);
-          L.DomEvent.disableScrollPropagation(popupWrap);
-          L.DomEvent.on(popupButton, 'mousedown', L.DomEvent.stop);
-          L.DomEvent.on(popupButton, 'mouseup', L.DomEvent.stop);
-          L.DomEvent.on(popupButton, 'touchstart', L.DomEvent.stop);
-          L.DomEvent.on(popupButton, 'pointerdown', L.DomEvent.stop);
-          L.DomEvent.on(popupButton, 'click', (clickEvt) => {
-            L.DomEvent.stop(clickEvt);
-            if (onEnlargementRequest) onEnlargementRequest(feature);
-            map.closePopup();
-          });
-
-          layer.bindPopup(popupWrap, { closeOnClick: true, autoClose: true, autoPan: true });
-        }
-      } else if (props.ADM4_EN) {
-        layer.bindTooltip(`<b>${props.ADM4_EN}</b>`, { 
-          permanent: true, 
-          direction: 'center',
-          className: 'section-tooltip' // Reuse section styling for barangays
-        });
-      }
-    } catch (e) {
-      console.warn("Tooltip binding failed:", e);
-    }
-
-    // Set Initial Style Safely
-    try {
-      if (isCad) {
-        layer.setStyle({
-          fillOpacity: 0.4,
-          weight: 1.5,
-          color: '#ffffff',
-          fillColor: '#3b82f6'
-        });
-      } else {
-        const featureColor = props.section_color || props.color || '#3388ff';
-        layer.setStyle({
-          fillOpacity: 0.75,
-          weight: 1.5,
-          color: '#ffffff',
-          fillColor: featureColor
-        });
-      }
-    } catch (e) {
-       console.warn("Initial style failed:", e);
-    }
-
-    layer.on('mouseover', () => {
-      layer.setStyle({ fillOpacity: 0.7, weight: 3, color: '#ff7800' });
-      if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
-        layer.bringToFront();
-      }
-    });
-
-    layer.on('mouseout', () => {
-      const isSelected = selectedFeaturePin ? getPin(feature) === selectedFeaturePin : (selectedFeatureRef.current === feature);
-      try {
-        if (isSelected) {
-          const selectedBorder = '#fbbf24'; 
-          const selectedFill = '#ffff00';
-          const selectedOpacity = 0.85;
-          layer.setStyle({ 
-            fillOpacity: selectedOpacity, 
-            weight: 5, 
-            color: selectedBorder, 
-            fillColor: selectedFill,
-            className: 'selected-feature-pulse',
-            dashArray: '10, 10'
-          });
-          layer.bringToFront();
-        } else if (isCad) {
-          layer.setStyle({ fillOpacity: 0.5, weight: 1.5, color: '#ffffff', fillColor: '#3b82f6' });
-        } else {
-          const featureColor = props.section_color || props.color || '#3388ff';
-          layer.setStyle({ fillOpacity: 0.75, weight: 1.5, color: '#ffffff', fillColor: featureColor });
-        }
-      } catch (e) {}
-    });
-  }
+  }, [selectedFeature, selectedFeaturePin, isCad, isStatic, map]);
 
   const handleCenter = () => {
     if (geoJsonRef.current) {
       try {
         const bounds = geoJsonRef.current.getBounds();
         if (bounds && typeof bounds.isValid === 'function' && bounds.isValid()) {
-            map.fitBounds(bounds);
+          map.fitBounds(bounds, { duration: 0.5, padding: [20, 20] });
         }
       } catch (e) {}
+    } else {
+      map.setView(LGU_CENTER, 12, { animate: true });
     }
-  }
+  };
 
-  // Create a more robust key that includes isCad to force refresh when switching modes
-  const activeKey = layerKey || `map-layer-${isCad ? 'cad' : 'pim'}-${geoData?.features?.length || 0}`;
+  const isSelected = (feature) => {
+    if (!feature) return false;
+    const currentPin = selectedFeaturePin || getPin(selectedFeature);
+    if (!currentPin) return feature === selectedFeature;
+    return getPin(feature) === currentPin;
+  };
+
+  const onEachFeature = (feature, layer) => {
+    if (!feature) return;
+    const props = feature.properties || {};
+    const pin = getPin(feature);
+    const pinShort = formatPinShort(pin);
+
+    // Click handler
+    layer.on('click', (e) => {
+      L.DomEvent.stopPropagation(e)
+      if (onFeatureSelect) onFeatureSelect(feature)
+    })
+
+    // Double click for enlargement if exists
+    layer.on('dblclick', (e) => {
+      L.DomEvent.stopPropagation(e)
+      if (onEnlargementRequest && props.enlargement_id) {
+        onEnlargementRequest(props.enlargement_id)
+      }
+    })
+
+    // Hover effect
+    layer.on('mouseover', () => {
+      if (!isStatic) {
+        layer.setStyle({ weight: isCad ? 3 : 2, color: '#3b82f6', opacity: 1 });
+        if (layer.bringToFront) layer.bringToFront();
+      }
+    });
+    layer.on('mouseout', () => {
+      if (!isStatic) {
+        const isSel = isSelected(feature);
+        layer.setStyle({ 
+          weight: isSel ? 4 : 1.5, 
+          color: isSel ? '#3b82f6' : (isCad ? '#ffffff' : '#ffffff'),
+          opacity: 1 
+        });
+      }
+    });
+
+    // Tooltip - parcel labels show just the Lot Number part
+    if (props.pin || props.PIN) {
+        const lotPart = pin.split('-').pop() || pin;
+        layer.bindTooltip(`${lotPart}`, {
+          permanent: true,
+          direction: 'center',
+          className: 'lot-tooltip'
+        });
+    } else if (props.section_number) {
+        layer.bindTooltip(`SEC ${props.section_number}`, {
+          permanent: true,
+          direction: 'center',
+          className: 'section-tooltip'
+        });
+    }
+  };
+
+  useEffect(() => {
+    if (geoJsonRef.current) {
+      geoJsonRef.current.eachLayer((layer) => {
+        const isSel = isSelected(layer.feature);
+        if (isSel) {
+           layer.setStyle({ 
+             weight: 4, 
+             color: '#3b82f6', 
+             fillOpacity: isCad ? 0.0 : 0.4,
+             fillColor: isCad ? 'transparent' : '#3b82f6'
+           });
+           if (layer.bringToFront) layer.bringToFront();
+        }
+      });
+    }
+  }, [selectedFeature, selectedFeaturePin, isCad, isolated, legend])
+
+  // Create a more robust key that DOES NOT include selection to avoid full re-mounts.
+  // We only change the key when the foundational data or map type changes.
+  const geojsonLayerKey = `${layerKey || 'layer'}-${isCad ? 'cad' : 'pim'}`;
 
   return (
     <>
@@ -358,11 +278,36 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
 
       {backgroundGeoData && (
         <GeoJSON
-          key={`bg-${backgroundGeoData?.features?.length || 0}`}
+          key={`bg-overlay-${backgroundGeoData?.metadata?.barangay || 'none'}`}
           data={backgroundGeoData}
           onEachFeature={(feature, layer) => {
             try {
-              layer.setStyle({ fillOpacity: 0.1, weight: 1.0, color: '#475569', fillColor: '#94a3b8' });
+              const props = feature.properties || {};
+              const isLot = props.pin || props.PIN || props.color;
+              const isAnySelected = !!(selectedFeature || selectedFeaturePin);
+              
+              const isCurrentBrgy = isAnySelected && props.ADM4_EN && selectedBarangay && 
+                                   (props.ADM4_EN.toLowerCase() === selectedBarangay.toLowerCase());
+
+              if (isLot && isCad) {
+                  const color = props.color || '#ff00ff';
+                  layer.setStyle({ 
+                    fillOpacity: 0.8, 
+                    weight: 1.5, 
+                    color: '#ffffff', 
+                    fillColor: color,
+                    className: 'lot-popup-anim',
+                    pane: 'parcels-pane'
+                  });
+              } else {
+                  layer.setStyle({ 
+                    fillOpacity: isCurrentBrgy ? 0 : (isolated ? 0.01 : 0.05), 
+                    weight: isCurrentBrgy ? 3 : 1.0, 
+                    color: isCurrentBrgy ? '#3b82f6' : '#475569', 
+                    fillColor: isCurrentBrgy ? 'transparent' : (isolated ? '#020617' : '#94a3b8')
+                  });
+              }
+
               if (isBackgroundInteractive) {
                 layer.on('click', (e) => {
                   L.DomEvent.stopPropagation(e);
@@ -374,11 +319,54 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         />
       )}
 
-      {geoData && geoData.features && (
-        <GeoJSON 
-            key={activeKey} 
-            ref={geoJsonRef} 
-            data={geoData} 
+      {geoData && (
+        <GeoJSON
+            key={geojsonLayerKey}
+            ref={geoJsonRef}
+            data={geoData}
+            style={(feature) => {
+              const props = feature.properties || {};
+              const isLot = props.pin || props.PIN;
+              const isAnySelected = !!(selectedFeature || selectedFeaturePin);
+              
+              if (isSelected(feature)) {
+                return { 
+                  fillOpacity: isCad ? 0.0 : 0.4, 
+                  weight: 4, 
+                  color: isCad ? '#3b82f6' : '#3b82f6', 
+                  fillColor: isCad ? 'transparent' : '#3b82f6',
+                  className: 'selected-feature-pulse',
+                  dashArray: ''
+                };
+              }
+              
+              if (isLot && isCad) {
+                const color = props.color || '#ff00ff';
+                return { 
+                  fillOpacity: 0.8, 
+                  weight: 1.5, 
+                  color: '#ffffff', 
+                  fillColor: color,
+                  pane: 'parcels-pane'
+                };
+              } else if (isCad) {
+                return {
+                  fillOpacity: isAnySelected ? (isolated ? 0.01 : 0.05) : 0.5,
+                  weight: 1.5,
+                  opacity: isAnySelected ? (isolated ? 0.1 : 0.4) : 0.8,
+                  color: isAnySelected ? '#94a3b8' : '#ffffff',
+                  fillColor: isAnySelected ? (isolated ? '#020617' : '#475569') : '#3b82f6'
+                };
+              } else {
+                const featureColor = props.color || props.section_color || '#3388ff';
+                return {
+                  fillOpacity: 0.75,
+                  weight: 1.5,
+                  color: '#ffffff',
+                  fillColor: featureColor
+                };
+              }
+            }}
             onEachFeature={onEachFeature}
             filter={isValidGeometry}
         />
@@ -390,7 +378,6 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
             <button className="map-control-btn" onClick={() => map.zoomIn()}><Plus size={20} /></button>
             <button className="map-control-btn" onClick={() => map.zoomOut()}><Minus size={20} /></button>
           </div>
-
           <div className="map-center-control">
             <button className="map-control-btn" onClick={handleCenter}><Locate size={20} /></button>
           </div>
@@ -398,7 +385,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       )}
 
       {error && (
-        <div style={{ position: 'absolute', top: '0.625rem', left: '0.625rem', zIndex: 1000, background: 'rgba(255,0,0,0.8)', color: 'white', padding: '0.3125rem 0.625rem', borderRadius: '0.25rem', fontSize: '0.75rem' }}>
+        <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000, background: 'rgba(255,0,0,0.8)', color: 'white', padding: '5px 10px', borderRadius: '4px', fontSize: '12px' }}>
           {error}
         </div>
       )}
@@ -406,36 +393,34 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   )
 }
 
-export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
   return (
-    <MapContainer
-      style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, background: '#f1f5f9' }}
-      zoom={13}
-      center={[13.79, 121.0]}
-      zoomControl={false}
-      dragging={!isStatic}
-      scrollWheelZoom={!isStatic}
-      doubleClickZoom={!isStatic}
-      boxZoom={!isStatic}
-      keyboard={!isStatic}
-      touchZoom={!isStatic}
-    >
-      <MapContent
-        geoData={geoData}
-        error={error}
-        onFeatureSelect={onFeatureSelect}
-        onEnlargementRequest={onEnlargementRequest}
-        selectedFeature={selectedFeature}
-        selectedFeaturePin={selectedFeaturePin}
-        isCad={isCad}
-        legend={legend}
-        backgroundGeoData={backgroundGeoData}
-        layerKey={layerKey}
-        isStatic={isStatic}
-        isBackgroundInteractive={isBackgroundInteractive}
-        showCustomControls={showCustomControls}
-        onMapReady={onMapReady}
-      />
-    </MapContainer>
-  )
+    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+        <MapContainer 
+            center={LGU_CENTER} 
+            zoom={12} 
+            style={{ height: '100%', width: '100%', background: isolated ? '#020617' : undefined }}
+            zoomControl={false}
+        >
+          <MapContent 
+            geoData={geoData}
+            error={error}
+            onFeatureSelect={onFeatureSelect}
+            onEnlargementRequest={onEnlargementRequest}
+            selectedFeature={selectedFeature}
+            selectedFeaturePin={selectedFeaturePin}
+            selectedBarangay={selectedBarangay}
+            isCad={isCad}
+            isolated={isolated}
+            legend={legend}
+            backgroundGeoData={backgroundGeoData}
+            layerKey={layerKey}
+            isStatic={isStatic}
+            isBackgroundInteractive={isBackgroundInteractive}
+            showCustomControls={showCustomControls}
+            onMapReady={onMapReady}
+          />
+        </MapContainer>
+    </div>
+  );
 }

@@ -28,6 +28,7 @@ function App() {
   const [isStaff, setIsStaff] = useState(false)
   const [activePage, setActivePage] = useState('dashboard')
   const [pimHeaderTitle, setPimHeaderTitle] = useState('Barangay Boundary Index Map')
+  const [cadHeaderTitle, setCadHeaderTitle] = useState('Cadastral Map')
   // Global Search
   const [searchBrgy, setSearchBrgy] = useState('');
   const [searchPin, setSearchPin] = useState('');
@@ -255,7 +256,7 @@ function App() {
   const avatarLetter = displayUser ? displayUser[0].toUpperCase() : 'U'
   const pageTitle = {
     'dashboard': 'Dashboard',
-    'map-cad': 'Cadastral Map',
+    'map-cad': cadHeaderTitle,
     'map-pim': pimHeaderTitle,
     'faqs': 'FAQs',
     'about': 'About & Credits',
@@ -274,6 +275,8 @@ function App() {
             error={error}
             isStaff={isStaff}
             searchBrgy={searchBrgy}
+            searchLot={searchPin}
+            onTitleChange={setCadHeaderTitle}
           />
         )
       case 'faqs':
@@ -314,7 +317,7 @@ function App() {
             <div className="header-search-field header-search-field-pin">
               <input
                 type="text"
-                placeholder="PIN..."
+                placeholder={activePage === 'map-cad' ? "Lot..." : "PIN..."}
                 value={searchPin}
                 onChange={e => setSearchPin(e.target.value)}
                 onFocus={() => {
@@ -366,22 +369,73 @@ function App() {
 
 // ── CAD Map Side Components ──
 
-function CadMap({ geoData, error, isStaff, searchBrgy = '' }) {
+const COMBO_MAP = {
+  'AGRI': { hex: '#22c55e', label: 'AGRICULTURE' },
+  'COMM': { hex: '#fbbf24', label: 'COMMERCIAL' },
+  'INDUSTRIAL': { hex: '#3b82f6', label: 'INDUSTRIAL' },
+  'RES': { hex: '#ef4444', label: 'RESIDENTIAL' },
+  'AGRI_RES': { hex: '#a855f7', label: 'AGRI + RES' },
+  'AGRI_COMM': { hex: '#a3e635', label: 'AGRI + COMM' },
+  'AGRI_INDUSTRIAL': { hex: '#06b6d4', label: 'AGRI + INDUSTRIAL' },
+  'COMM_RES': { hex: '#f97316', label: 'COMM + RES' },
+  'COMM_INDUSTRIAL': { hex: '#ec4899', label: 'COMM + INDUSTRIAL' },
+  'INDUSTRIAL_RES': { hex: '#94a3b8', label: 'INDUSTRIAL + RES' },
+  'AGRI_COMM_RES': { hex: '#92400e', label: 'AGRI + COMM + RES' },
+  'AGRI_COMM_INDUSTRIAL': { hex: '#0d9488', label: 'AGRI + COMM + INDUSTRIAL' },
+  'AGRI_INDUSTRIAL_RES': { hex: '#7f1d1d', label: 'AGRI + INDUSTRIAL + RES' },
+  'COMM_INDUSTRIAL_RES': { hex: '#eab308', label: 'COMM + INDUSTRIAL + RES' },
+  'AGRI_COMM_INDUSTRIAL_RES': { hex: '#000000', label: 'MULTIPLE CLASSIFICATION' },
+  'UNCLASSIFIED': { hex: '#ff00ff', label: 'UNCLASSIFIED / NO DATA' } 
+};
+
+function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTitleChange }) {
   const [selectedBarangay, setSelectedBarangay] = useState(null)
   const [selectedFeature, setSelectedFeature] = useState(null)
+  const [selectedLotFeature, setSelectedLotFeature] = useState(null)
+  const [overlayGeoData, setOverlayGeoData] = useState(null)
+  const [isLoadingOverlay, setIsLoadingOverlay] = useState(false)
 
-  // Auto-select when searchBrgy exactly matches a barangay
+  // Auto-search for lot when overlay data is loaded or searchLot changes
+  useEffect(() => {
+    if (!overlayGeoData || !searchLot || searchLot.length < 1) return;
+
+    const query = searchLot.trim().toLowerCase();
+    const match = overlayGeoData.features.find(f => {
+      const lotNo = String(f.properties.lot_no || '').toLowerCase();
+      const pin = String(f.properties.pin || f.properties.PIN || '').toLowerCase();
+      // Match full lot number or the lot part of the PIN
+      return lotNo === query || pin === query || pin.endsWith('-' + query) || pin.endsWith(query);
+    });
+
+    if (match) {
+      setSelectedLotFeature(match);
+    }
+  }, [overlayGeoData, searchLot]);
+
+  useEffect(() => {
+    if (!onTitleChange) return;
+    onTitleChange('Cadastral Map');
+  }, [selectedBarangay, selectedLotFeature, onTitleChange]);
   useEffect(() => {
     const query = (searchBrgy || '').trim().toLowerCase();
     if (!query) return;
     const match = CAD_BARANGAYS.find(b => b.toLowerCase() === query);
-    if (match) {
+    if (match && match !== selectedBarangay) {
       handleListClick(match);
     }
   }, [searchBrgy]);
 
+
   const handleSelect = (feature) => {
-    const rawName = (feature?.properties?.ADM4_EN || '').toLowerCase().trim();
+    const props = feature?.properties || {};
+    
+    // Check if it's a lot clicking (from overlay)
+    if (props.pin || props.PIN || props.owner) {
+      setSelectedLotFeature(feature);
+      return;
+    }
+
+    const rawName = (props.ADM4_EN || '').toLowerCase().trim();
     if (!rawName) return;
 
     // Search for a list item that matches or contains the geojson name
@@ -390,8 +444,29 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '' }) {
       return ln === rawName || ln.includes(rawName) || rawName.includes(ln);
     });
 
-    setSelectedBarangay(match || feature?.properties?.ADM4_EN);
+    const finalName = match || props.ADM4_EN;
+    
+    setSelectedBarangay(finalName);
     setSelectedFeature(feature);
+    setSelectedLotFeature(null);
+
+    // Fetch overlay lots for the selected barangay
+    if (finalName) {
+      setOverlayGeoData(null);
+      setIsLoadingOverlay(true);
+      apiGet(`/api/pim/barangays/${encodeURIComponent(finalName)}/lots/`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.features) {
+            setOverlayGeoData(data);
+          }
+          setIsLoadingOverlay(false);
+        })
+        .catch(err => {
+          console.error("Failed to load overlay lots:", err);
+          setIsLoadingOverlay(false);
+        });
+    }
   };
 
   const handleListClick = (name) => {
@@ -403,25 +478,102 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '' }) {
     });
     if (feature) handleSelect(feature);
   };
+  
+  const handleBack = () => {
+    setSelectedBarangay(null);
+    setSelectedFeature(null);
+    setSelectedLotFeature(null);
+    setOverlayGeoData(null);
+  };
 
   return (
     <div className="cad-page">
-      <div className="cad-layout" style={{ gridTemplateColumns: '1fr 30rem', height: '100%' }}>
+      <div className="cad-layout" style={{ gridTemplateColumns: '1fr 30rem', height: '100%', position: 'relative' }}>
         <div className="cad-map-area">
-          <div className="map-view">
+          <div className="map-view" data-blurred={!!selectedBarangay}>
+            {isLoadingOverlay && (
+              <div style={{ position: 'absolute', top: '50%', left: '40%', transform: 'translate(-50%, -50%)', zIndex: 1000, background: 'rgba(255,255,255,0.9)', padding: '1rem', borderRadius: '0.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', fontWeight: 'bold' }}>
+                Loading parcels...
+              </div>
+            )}
+            
+            {/* Simplified Lot Details Popup */}
+            {selectedLotFeature && (
+              <div style={{ 
+                position: 'absolute', top: '1.5rem', right: '1.5rem', zIndex: 1100, 
+                background: 'rgba(255, 255, 255, 0.98)', padding: '1.25rem', borderRadius: '1rem', 
+                boxShadow: '0 10px 30px rgba(15, 23, 42, 0.15)', border: '1px solid #e2e8f0', 
+                width: '240px', backdropFilter: 'blur(10px)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.05rem' }}>Lot Details</div>
+                  <button onClick={() => setSelectedLotFeature(null)} style={{ background: '#f1f5f9', border: 'none', color: '#94a3b8', cursor: 'pointer', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.9rem', color: '#1e293b' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Lot:</span>
+                    <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.pin || selectedLotFeature.properties.PIN || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Barangay:</span>
+                    <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.barangay || selectedBarangay || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Section No.:</span>
+                    <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.section_number || selectedLotFeature.properties.section || 'N/A'}</span>
+                  </div>
+                  {/* Keep PIN as a subtle foot note or hidden if truly not wanted, but usually it's helpful. I'll hide it for now as per minimal request. */}
+                </div>
+              </div>
+            )}
+
             <MapComponent
-              geoData={geoData}
+              geoData={selectedBarangay ? overlayGeoData : geoData}
               error={error}
               onFeatureSelect={handleSelect}
-              selectedFeature={selectedFeature}
+              selectedFeature={selectedLotFeature || selectedFeature}
+              selectedFeaturePin={selectedLotFeature?.properties?.pin || selectedLotFeature?.properties?.PIN}
+              selectedBarangay={selectedBarangay}
               isCad={true}
-              isStatic={false}
+              isolated={!!selectedBarangay}
               legend={CAD_BARANGAYS}
+              backgroundGeoData={selectedBarangay ? geoData : null}
+              isBackgroundInteractive={true}
             />
           </div>
         </div>
         <div className="cad-legend">
-          <h3>BARANGAYS</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '2px solid #3b82f633', paddingBottom: '0.5rem' }}>
+            <h3 style={{ margin: 0 }}>BARANGAYS</h3>
+            {selectedBarangay && (
+              <button 
+                onClick={handleBack} 
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  padding: '0.4rem 0.8rem', 
+                  borderRadius: '0.5rem', 
+                  background: '#f1f5f9', 
+                  border: '1px solid #e2e8f0', 
+                  color: '#1e3a5f', 
+                  fontSize: '0.82rem', 
+                  fontWeight: '700', 
+                  cursor: 'pointer', 
+                  transition: 'all 0.2s',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+              >
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Map
+              </button>
+            )}
+          </div>
           <div className="cad-legend-grid">
             {CAD_BARANGAYS
               .filter(b => b.trim().toLowerCase().includes(searchBrgy.trim().toLowerCase()))
