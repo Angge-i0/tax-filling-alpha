@@ -157,7 +157,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       lastFlyPinRef.current = currentPin || null;
       try {
         let found = false;
-        
+
         // Helper to check layers
         const checkLayers = (ref) => {
           if (!ref?.current) return;
@@ -182,14 +182,14 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
         checkLayers(geoJsonRef);
         // Important: If not found in primary (lots), check background (barangay boundaries)
         if (!found) {
-            // we'd need a ref for backgroundGeoData's GeoJSON too, 
-            // but we can also just fit bounds to the primary geoData if it's the overlay
-            if (isCad && selectedBarangay && geoJsonRef.current) {
-                const bounds = geoJsonRef.current.getBounds();
-                if (bounds && bounds.isValid()) {
-                    map.flyToBounds(bounds, { padding: [10, 10], duration: 1 });
-                }
+          // we'd need a ref for backgroundGeoData's GeoJSON too, 
+          // but we can also just fit bounds to the primary geoData if it's the overlay
+          if (isCad && selectedBarangay && geoJsonRef.current) {
+            const bounds = geoJsonRef.current.getBounds();
+            if (bounds && bounds.isValid()) {
+              map.flyToBounds(bounds, { padding: [10, 10], duration: 1 });
             }
+          }
         }
       } catch (e) {
         console.warn("Feature zoom error:", e);

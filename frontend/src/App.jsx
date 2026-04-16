@@ -438,11 +438,14 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
     const rawName = (props.ADM4_EN || '').toLowerCase().trim();
     if (!rawName) return;
 
-    // Search for a list item that matches or contains the geojson name
-    const match = CAD_BARANGAYS.find(n => {
-      const ln = n.toLowerCase().trim();
-      return ln === rawName || ln.includes(rawName) || rawName.includes(ln);
-    });
+    // Prioritize exact match first to avoid "Pila" matching "Del Pilar"
+    let match = CAD_BARANGAYS.find(n => n.toLowerCase().trim() === rawName);
+    if (!match) {
+      match = CAD_BARANGAYS.find(n => {
+        const ln = n.toLowerCase().trim();
+        return ln.includes(rawName) || rawName.includes(ln);
+      });
+    }
 
     const finalName = match || props.ADM4_EN;
     
@@ -472,10 +475,14 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
   const handleListClick = (name) => {
     if (!geoData) return;
     const ln = (name || '').toLowerCase().trim();
-    const feature = geoData.features.find(f => {
-      const fn = (f.properties?.ADM4_EN || '').toLowerCase().trim();
-      return fn === ln || fn.includes(ln) || ln.includes(fn);
-    });
+    // Prioritize exact match
+    let feature = geoData.features.find(f => (f.properties?.ADM4_EN || '').toLowerCase().trim() === ln);
+    if (!feature) {
+      feature = geoData.features.find(f => {
+        const fn = (f.properties?.ADM4_EN || '').toLowerCase().trim();
+        return fn.includes(ln) || ln.includes(fn);
+      });
+    }
     if (feature) handleSelect(feature);
   };
   
