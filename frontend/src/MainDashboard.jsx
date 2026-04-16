@@ -80,21 +80,21 @@ const pieCalloutPlugin = {
       const color = (Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor);
       const dirX = Math.cos(angle);
       const dirY = Math.sin(angle);
-      
+
       const startX = arc.x + dirX * (arc.outerRadius - 1);
       const startY = arc.y + dirY * (arc.outerRadius - 1);
       const elbowX = arc.x + dirX * (arc.outerRadius + 14);
       const elbowY = arc.y + dirY * (arc.outerRadius + 14);
-      
+
       const textWidth = ctx.measureText(percentageText).width;
       const boxWidth = textWidth + 18;
       const boxHeight = 26;
 
       callouts.push({
-        angle, dirX, dirY, startX, startY, elbowX, elbowY, 
+        angle, dirX, dirY, startX, startY, elbowX, elbowY,
         percentageText, color, boxWidth, boxHeight,
         isRight: dirX >= 0,
-        sortY: elbowY 
+        sortY: elbowY
       });
     });
 
@@ -128,7 +128,7 @@ const pieCalloutPlugin = {
       ctx.shadowBlur = 4;
       ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
       ctx.shadowBlur = 0;
-      
+
       ctx.lineWidth = 2;
       ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
 
@@ -296,9 +296,9 @@ function LotMapContent({
 
     const resizeObserver = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver(() => {
-          map.invalidateSize();
-          fitToVisibleMap();
-        })
+        map.invalidateSize();
+        fitToVisibleMap();
+      })
       : null;
 
     const mapContainer = map.getContainer();
@@ -583,7 +583,7 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
             const percent = total ? ((value / total) * 100).toFixed(1) : '0.0';
             const formattedValue = formatArea(value);
             const formattedTotal = formatArea(total);
-            
+
             return [
               `Area: ${formattedValue} sqm`,
               `Formula: (${formattedValue} / ${formattedTotal}) × 100`,
@@ -608,16 +608,16 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
     });
     const total = agri + comml + indl + res;
     if (total === 0) return null;
-    
+
     const data = [agri, comml, res, indl];
     const labels = ['Agricultural', 'Commercial', 'Residential', 'Industrial'];
-    
+
     let maxVal = -1;
     let maxIdx = 0;
     data.forEach((v, i) => {
       if (v > maxVal) { maxVal = v; maxIdx = i; }
     });
-    
+
     return {
       agri, comml, indl, res,
       total,
@@ -636,10 +636,10 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
       const a = getLotAreaValues(selectedLot);
       const total = a.agri + a.comml + a.indl + a.res;
       if (total === 0) return null;
-      
+
       const data = [a.agri, a.comml, a.res, a.indl];
       const labels = ['Agricultural', 'Commercial', 'Residential', 'Industrial'];
-      
+
       let maxVal = -1;
       let maxIdx = 0;
       data.forEach((v, i) => {
@@ -769,32 +769,32 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
                 <MapControls onCenter={handleCenter} />
               </MapContainer>
 
-                <div className="dash-map-summary">
-                  <h3>{overviewTitle}</h3>
-                  <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
-                    Based on land area type classification (sqm).
-                    {selectedLot 
-                      ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.` 
-                      : ' Showing the total aggregate area for all properties in the municipality.'}
-                  </p>
-                  <div className="dash-summary-grid">
-                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
-                      <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Area Agricultural'}</label>
-                      <strong style={{ color: MAIN_COLORS.agri }}>{formatArea(selectedLot ? selectedLot.area_agri : totalAreaStats?.agri)}</strong>
-                    </div>
-                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
-                      <label style={{ color: MAIN_COLORS.res }}>{selectedLot ? 'Area Residential' : 'Total Area Residential'}</label>
-                      <strong style={{ color: MAIN_COLORS.res }}>{formatArea(selectedLot ? selectedLot.area_res : totalAreaStats?.res)}</strong>
-                    </div>
-                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
-                      <label style={{ color: MAIN_COLORS.indl }}>{selectedLot ? 'Area Industrial' : 'Total Area Industrial'}</label>
-                      <strong style={{ color: MAIN_COLORS.indl }}>{formatArea(selectedLot ? (selectedLot.area_indl ?? selectedLot.area_ind) : totalAreaStats?.indl)}</strong>
-                    </div>
-                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
-                      <label style={{ color: MAIN_COLORS.comml }}>{selectedLot ? 'Area Commercial' : 'Total Area Commercial'}</label>
-                      <strong style={{ color: MAIN_COLORS.comml }}>{formatArea(selectedLot ? (selectedLot.area_comml ?? selectedLot.area_commml) : totalAreaStats?.comml)}</strong>
-                    </div>
+              <div className="dash-map-summary">
+                <h3>{overviewTitle}</h3>
+                <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
+                  Based on land area type classification (sqm).
+                  {selectedLot
+                    ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.`
+                    : ' Showing the total aggregate area for all properties in the municipality.'}
+                </p>
+                <div className="dash-summary-grid">
+                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
+                    <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Area Agricultural'}</label>
+                    <strong style={{ color: MAIN_COLORS.agri }}>{formatArea(selectedLot ? selectedLot.area_agri : totalAreaStats?.agri)}</strong>
                   </div>
+                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
+                    <label style={{ color: MAIN_COLORS.res }}>{selectedLot ? 'Area Residential' : 'Total Area Residential'}</label>
+                    <strong style={{ color: MAIN_COLORS.res }}>{formatArea(selectedLot ? selectedLot.area_res : totalAreaStats?.res)}</strong>
+                  </div>
+                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
+                    <label style={{ color: MAIN_COLORS.indl }}>{selectedLot ? 'Area Industrial' : 'Total Area Industrial'}</label>
+                    <strong style={{ color: MAIN_COLORS.indl }}>{formatArea(selectedLot ? (selectedLot.area_indl ?? selectedLot.area_ind) : totalAreaStats?.indl)}</strong>
+                  </div>
+                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
+                    <label style={{ color: MAIN_COLORS.comml }}>{selectedLot ? 'Area Commercial' : 'Total Area Commercial'}</label>
+                    <strong style={{ color: MAIN_COLORS.comml }}>{formatArea(selectedLot ? (selectedLot.area_comml ?? selectedLot.area_commml) : totalAreaStats?.comml)}</strong>
+                  </div>
+                </div>
               </div>
 
               <div className="dash-floating-chart">

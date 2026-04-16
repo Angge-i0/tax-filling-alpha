@@ -1,9 +1,8 @@
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet'
-import { useEffect, useState, useRef } from 'react'
-import { useMap } from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
-import { Plus, Minus, Maximize, Locate } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react';
+import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Plus, Minus, Maximize, Locate } from 'lucide-react';
 
 // Safer GeoJSON wrapper to catch errors during feature processing
 function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, isCad, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {

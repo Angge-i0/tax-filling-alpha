@@ -1,16 +1,16 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import Sidebar from './Sidebar'
-import LoginModal from './LoginModal'
-import MainDashboard from './MainDashboard'
-import AdminDashboard from './AdminDashboard'
-import FAQs from './FAQs'
-import AboutCredits from './AboutCredits'
-import MapComponent from './MapComponent'
+import { useState, useEffect, useMemo, useRef } from 'react';
+import Sidebar from './Sidebar';
+import LoginModal from './LoginModal';
+import MainDashboard from './MainDashboard';
+import AdminDashboard from './AdminDashboard';
+import FAQs from './FAQs';
+import AboutCredits from './AboutCredits';
+import MapComponent from './MapComponent';
 import PimView from './PimView';
 import { Search } from 'lucide-react';
-import { apiGet, apiPost, clearTokens, getAccessToken, getRefreshToken } from './api'
-import './App.css'
-import ErrorBoundary from './ErrorBoundary'
+import { apiGet, apiPost, clearTokens, getAccessToken, getRefreshToken } from './api';
+import './App.css';
+import ErrorBoundary from './ErrorBoundary';
 
 const CAD_BARANGAYS = [
   'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
