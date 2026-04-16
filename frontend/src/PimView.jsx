@@ -580,7 +580,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         if (!computedTax?.perClass?.length) return [];
         return computedTax.perClass.map(item => ({
             key: item.key,
-            label: `Area ${item.label}`,
+            label: `${item.label}`,
             value: item.area
         }));
     }, [computedTax]);
@@ -819,7 +819,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                         <div className="lot-detail-card" style={{ flex: 1 }}><label>ARP NO.</label><div className="lot-card-val">{lotProp('arp_no') || 'N/A'}</div></div>
                                         <div className="lot-detail-card" style={{ flex: 1 }}><label>PREVIOUS ARP NO.</label><div className="lot-card-val">{lotProp('prev_arp_no') || lotProp('previous_arp_no') || lotProp('previous_arp') || 'N/A'}</div></div>
                                     </div>
-                                    <div className="lot-detail-card full"><label>NAME OF OWNER</label><div className="lot-card-val">{lotProp('owner') || 'N/A'}</div></div>
+                                    <div className="lot-detail-card full"><label>NAME OF OWNER/S</label><div className="lot-card-val">{lotProp('owner') || 'N/A'}</div></div>
                                     <div className="lot-detail-card full"><label>ADDRESS OF OWNER</label><div className="lot-card-val">{lotProp('address') || `Lot ${String(lotProp('pin') || '').split('-').pop() || '?'}, Sec. ${selectedSection}, Brgy. ${selectedBarangay}, San Pascual, Batangas`}</div></div>
                                     <div className="lot-detail-card full"><label>AREA (SQM)</label>
                                         <div className="lot-card-val">
