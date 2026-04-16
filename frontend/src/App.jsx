@@ -539,6 +539,7 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
               isolated={!!selectedBarangay}
               legend={CAD_BARANGAYS}
               backgroundGeoData={selectedBarangay ? geoData : null}
+              layerKey={selectedBarangay ? `cad-overlay-${selectedBarangay}` : 'cad-municipal-index'}
               isBackgroundInteractive={true}
             />
           </div>
