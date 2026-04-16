@@ -354,30 +354,60 @@ function LotMapContent({
 
 const STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-  .dash-root { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; display: flex; flex-direction: column; height: 100%; overflow-y: auto; color: #0f172a; padding: 2rem 0 2rem 2rem; position: relative; scrollbar-gutter: stable; }
+  .dash-root { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; display: flex; flex-direction: column; height: 100%; overflow-y: auto; color: #0f172a; padding: 2rem 0 2rem 0; position: relative; scrollbar-gutter: stable; }
   .dash-title-block { text-align: center; margin-bottom: 1rem; }
   .dash-title-block h1 { font-family: 'Playfair Display', serif; font-size: 2.22rem; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; margin: 0; }
   .dash-title-block p { font-size: 0.85rem; font-weight: 700; color: #64748b; letter-spacing: 0.1em; margin-top: 0.25rem; }
-  .dash-main-container { display: flex; flex-direction: column; gap: 1.4rem; width: calc(100% - 2rem); max-width: 1600px; margin: 0 auto; padding-right: 2rem; box-sizing: border-box; }
+  .dash-main-container { display: flex; flex-direction: column; gap: 1.4rem; width: 100%; max-width: 1600px; margin: 0 auto; padding-right: 2rem; box-sizing: border-box; }
   .dash-upper-section { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(22rem, 0.8fr); gap: 1.4rem; align-items: stretch; }
   .dash-map-stage { display: flex; flex-grow: 1; }
   .dash-map-panel { position: relative; background: #fff; border-radius: 1rem; border: 1px solid #dce7f4; overflow: hidden; box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08); flex-grow: 1; min-height: 44rem; }
-  .dash-map-summary { position: absolute; top: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); width: 22.5rem; }
-  .dash-floating-chart { position: absolute; bottom: 0.9rem; right: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; min-width: 18rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); }
-  .dash-left-floating-chart { position: absolute; bottom: 0.9rem; left: 0.9rem; z-index: 1000; background: #ffffff; border: 1px solid #dbe7f3; border-radius: 0.9rem; padding: 0.8rem; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1); width: 20.5rem; }
-  .dash-map-summary h3 { margin: 0; font-size: 0.95rem; font-weight: 800; color: #16345c; }
-  .dash-map-summary p { margin: 0.25rem 0 0.65rem; font-size: 0.72rem; color: #6b7f99; line-height: 1.35; }
-  .dash-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin-bottom: 0.65rem; }
-  .dash-summary-pill { background: #ffffff; border: 2px solid #dde8f3; border-radius: 0.8rem; padding: 0.55rem 0.6rem; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+  .dash-left-overlays {
+    position: absolute;
+    top: 0.8rem;
+    left: 0.8rem;
+    bottom: 0.8rem;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 18.5rem;
+    pointer-events: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 0.4rem;
+  }
+  .dash-left-overlays::-webkit-scrollbar { width: 4px; }
+  .dash-left-overlays::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+  .dash-left-overlays > * {
+    pointer-events: auto;
+    flex-shrink: 0;
+  }
+  .dash-map-summary,
+  .dash-floating-chart,
+  .dash-left-floating-chart {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(8px);
+    border-radius: 0.8rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #dce7f4;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+  }
+  .dash-map-summary h3 { margin: 0; font-size: 0.9rem; font-weight: 800; color: #16345c; line-height: 1.2; }
+  .dash-map-summary p { margin: 0.25rem 0 0.5rem; font-size: 0.65rem; color: #6b7f99; line-height: 1.3; }
+  .dash-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+  .dash-summary-pill { background: #ffffff; border: 2px solid #dde8f3; border-radius: 0.6rem; padding: 0.4rem 0.5rem; transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
   .dash-summary-pill:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12); }
-  .dash-summary-pill label { display: block; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.24rem; line-height: 1.2; white-space: normal; overflow: visible; text-overflow: clip; min-height: 1.45rem; }
-  .dash-summary-pill strong { font-size: 0.9rem; word-break: normal; line-height: 1.15; display: block; margin-top: 0.1rem; }
+  .dash-summary-pill label { display: block; font-size: 0.54rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.15rem; line-height: 1.1; white-space: normal; overflow: visible; text-overflow: clip; min-height: 1.2rem; }
+  .dash-summary-pill strong { font-size: 0.8rem; word-break: normal; line-height: 1; display: block; margin-top: 0.1rem; }
   .dash-summary-value { border-top: 1px solid #e5eef6; padding-top: 0.65rem; margin-top: 0.65rem; display: grid; gap: 0.5rem; }
   .dash-summary-row { display: flex; justify-content: space-between; gap: 0.9rem; align-items: center; }
   .dash-summary-row span { font-size: 0.54rem; font-weight: 800; color: #71839a; letter-spacing: 0.08em; text-transform: uppercase; }
   .dash-summary-row strong { font-size: 0.68rem; color: #102c53; text-align: right; }
-  .dash-floating-chart { position: absolute; right: 0.9rem; bottom: 0.9rem; width: min(19rem, calc(100% - 7rem)); background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border-radius: 0.9rem; padding: 0.8rem 0.9rem; z-index: 1000; border: 1px solid #dce7f4; box-shadow: 0 12px 22px rgba(15, 23, 42, 0.14); }
-  .dash-chart-caption { font-size: 0.64rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.55rem; }
+  .dash-chart-caption { font-size: 0.64rem; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem; }
   .dash-side-panel { display: flex; flex-direction: column; gap: 1rem; }
   .dash-card { background: #fff; border-radius: 1rem; border: 1px solid #dce7f4; padding: 1rem; display: flex; flex-direction: column; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06); }
   .dash-card-title { font-size: 0.74rem; font-weight: 800; color: #526783; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 0.8rem; }
@@ -430,24 +460,14 @@ const STYLES = `
     .dash-map-panel { min-height: 34rem; height: 34rem; }
   }
   @media (max-width: 760px) {
-    .dash-map-summary { position: static; width: auto; margin: 1rem; }
-    .dash-floating-chart { position: static; width: auto; margin: 1rem; }
+    .dash-left-overlays { position: static; width: auto; margin: 1rem; display: block; overflow-y: visible; }
+    .dash-map-summary { position: static; width: auto; margin-bottom: 1rem; }
+    .dash-floating-chart { position: static; width: auto; margin-bottom: 1rem; }
+    .dash-left-floating-chart { position: static; width: auto; margin-bottom: 1rem; }
     .custom-map-controls { top: auto; bottom: 1rem; transform: none; }
     .dash-assessment-header h2 { font-size: 1.55rem; }
     .dash-pie-area { min-height: 17rem; }
     .dash-signifies-list { grid-template-columns: 1fr; }
-  }
-  .dash-left-floating-chart {
-    position: absolute;
-    left: 0.9rem;
-    bottom: 0.9rem;
-    width: min(15.5rem, calc(100% - 10rem));
-    background: #ffffff;
-    border-radius: 0.9rem;
-    padding: 0.8rem 0.9rem;
-    z-index: 1000;
-    border: 1px solid #dce7f4;
-    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.14);
   }
   .dash-no-data-msg {
     height: 100%;
@@ -679,7 +699,7 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
   const pieOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: { top: 18, right: 98, bottom: 18, left: 98 } },
+    layout: { padding: { top: 30, right: 54, bottom: 30, left: 54 } },
     plugins: {
       pieCalloutPlugin: { decimalPlaces: 0 },
       legend: { display: false },
@@ -769,77 +789,79 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
                 <MapControls onCenter={handleCenter} />
               </MapContainer>
 
-              <div className="dash-map-summary">
-                <h3>{overviewTitle}</h3>
-                <p style={{ fontSize: '0.65rem', marginBottom: '0.5rem' }}>
-                  Based on land area type classification (sqm).
-                  {selectedLot
-                    ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.`
-                    : ' Showing the total aggregate area for all properties in the municipality.'}
-                </p>
-                <div className="dash-summary-grid">
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
-                    <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Area Agricultural'}</label>
-                    <strong style={{ color: MAIN_COLORS.agri }}>{formatArea(selectedLot ? selectedLot.area_agri : totalAreaStats?.agri)}</strong>
-                  </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
-                    <label style={{ color: MAIN_COLORS.res }}>{selectedLot ? 'Area Residential' : 'Total Area Residential'}</label>
-                    <strong style={{ color: MAIN_COLORS.res }}>{formatArea(selectedLot ? selectedLot.area_res : totalAreaStats?.res)}</strong>
-                  </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
-                    <label style={{ color: MAIN_COLORS.indl }}>{selectedLot ? 'Area Industrial' : 'Total Area Industrial'}</label>
-                    <strong style={{ color: MAIN_COLORS.indl }}>{formatArea(selectedLot ? (selectedLot.area_indl ?? selectedLot.area_ind) : totalAreaStats?.indl)}</strong>
-                  </div>
-                  <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
-                    <label style={{ color: MAIN_COLORS.comml }}>{selectedLot ? 'Area Commercial' : 'Total Area Commercial'}</label>
-                    <strong style={{ color: MAIN_COLORS.comml }}>{formatArea(selectedLot ? (selectedLot.area_comml ?? selectedLot.area_commml) : totalAreaStats?.comml)}</strong>
+              <div className="dash-left-overlays">
+                <div className="dash-map-summary">
+                  <h3>{overviewTitle}</h3>
+                  <p>
+                    Based on land area type classification (sqm).
+                    {selectedLot
+                      ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.`
+                      : ' Showing the total aggregate area for all properties.'}
+                  </p>
+                  <div className="dash-summary-grid">
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
+                      <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Agricultural'}</label>
+                      <strong style={{ color: MAIN_COLORS.agri }}>{formatArea(selectedLot ? selectedLot.area_agri : totalAreaStats?.agri)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.res }}>
+                      <label style={{ color: MAIN_COLORS.res }}>{selectedLot ? 'Area Residential' : 'Total Residential'}</label>
+                      <strong style={{ color: MAIN_COLORS.res }}>{formatArea(selectedLot ? selectedLot.area_res : totalAreaStats?.res)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.indl }}>
+                      <label style={{ color: MAIN_COLORS.indl }}>{selectedLot ? 'Area Industrial' : 'Total Industrial'}</label>
+                      <strong style={{ color: MAIN_COLORS.indl }}>{formatArea(selectedLot ? (selectedLot.area_indl ?? selectedLot.area_ind) : totalAreaStats?.indl)}</strong>
+                    </div>
+                    <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.comml }}>
+                      <label style={{ color: MAIN_COLORS.comml }}>{selectedLot ? 'Area Commercial' : 'Total Commercial'}</label>
+                      <strong style={{ color: MAIN_COLORS.comml }}>{formatArea(selectedLot ? (selectedLot.area_comml ?? selectedLot.area_commml) : totalAreaStats?.comml)}</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="dash-floating-chart">
-                <div className="dash-chart-caption">Tax Revenue By Category</div>
-                <div style={{ height: '8.5rem' }}>
-                  {barData && <Bar data={barData} options={barOptions} />}
-                </div>
-              </div>
-
-              <div className="dash-left-floating-chart" data-has-lot={!!selectedLot}>
-                <div className="dash-chart-caption">
-                  {areaCaption}
-                </div>
-                <div style={{ height: '14rem', position: 'relative' }}>
-                  {lotAreaPieData ? (
-                    <Pie data={lotAreaPieData} options={lotAreaPieOptions} />
-                  ) : (
-                    <div className="dash-no-data-msg">
-                      {selectedLot ? 'No Area Data for this lot' : 'Calculating land use...'}
+                <div className="dash-left-floating-chart" data-has-lot={!!selectedLot} style={{ display: 'flex', flexDirection: 'column', flex: 1.8 }}>
+                  <div className="dash-chart-caption">
+                    {areaCaption}
+                  </div>
+                  <div style={{ flex: 1, minHeight: '9rem', position: 'relative' }}>
+                    {lotAreaPieData ? (
+                      <Pie data={lotAreaPieData} options={lotAreaPieOptions} />
+                    ) : (
+                      <div className="dash-no-data-msg">
+                        {selectedLot ? 'No Area Data for this lot' : 'Calculating land use...'}
+                      </div>
+                    )}
+                  </div>
+                  {currentAreaInfo && (
+                    <div style={{ marginTop: '0.4rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.4rem' }}>
+                      <div style={{ fontSize: '0.55rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>
+                        Highest Classification
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: currentAreaInfo.dominant.color }}>
+                          {currentAreaInfo.dominant.label}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1e293b' }}>
+                          {currentAreaInfo.dominant.percent}%
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
-                {currentAreaInfo && (
-                  <div style={{ marginTop: '0.6rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
-                    <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>
-                      Highest Classification
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: currentAreaInfo.dominant.color }}>
-                        {currentAreaInfo.dominant.label}
-                      </span>
-                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>
-                        {currentAreaInfo.dominant.percent}%
-                      </span>
-                    </div>
+
+                <div className="dash-floating-chart" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div className="dash-chart-caption">Tax Revenue By Category</div>
+                  <div style={{ flex: 1, minHeight: '6rem', position: 'relative' }}>
+                    {barData && <Bar data={barData} options={barOptions} />}
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
 
           <div className="dash-side-panel">
-            <div className="dash-card">
+            <div className="dash-card" style={{ flex: 1 }}>
               <div className="dash-card-title">Proportional Revenue</div>
-              <div className="dash-pie-area">
+              <div className="dash-pie-area" style={{ flex: 1, minHeight: 0 }}>
                 {revenueData && <Pie data={revenueData} options={pieOptions} />}
               </div>
               <div className="dash-signifies">
