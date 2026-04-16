@@ -203,13 +203,28 @@ function getLotStyle(props, hoveredPin, selectedPin) {
   const pin = String(props?.pin || '');
   const isHovered = hoveredPin && hoveredPin === pin;
   const isSelected = selectedPin && selectedPin === pin;
+  const fillColor = props?.color || (dominantValue > 0 ? MAIN_COLORS[dominantClass] : '#ff00ff');
+  const hasExplicitColor = Boolean(props?.color) || dominantValue > 0;
+  const yellowFill = '#fde047';
 
   return {
-    fillColor: dominantValue > 0 ? MAIN_COLORS[dominantClass] : '#cbd5e1',
-    fillOpacity: isSelected ? 1.0 : (dominantValue > 0 ? (isHovered ? 0.95 : 0.85) : (isHovered ? 0.45 : 0.25)),
-    color: isSelected ? '#3b82f6' : (isHovered ? '#ffffff' : '#f8fafc'),
-    weight: isSelected ? 3.5 : (isHovered ? 2.2 : 0.8),
+    fillColor: isSelected ? yellowFill : fillColor,
+    fillOpacity: isSelected ? 0.95 : (hasExplicitColor ? (isHovered ? 0.95 : 0.85) : (isHovered ? 0.45 : 0.25)),
+    color: isSelected ? fillColor : (isHovered ? '#ffffff' : '#f8fafc'),
+    weight: isSelected ? 6 : (isHovered ? 2.2 : 0.8),
+    opacity: 1,
   };
+}
+
+function getSpecialLotMeaning(props = {}) {
+  const colorKey = String(props.color_key || props.dashboard_color_key || '').toUpperCase();
+  if (colorKey === 'UNCLASSIFIED') {
+    return { tone: 'pink', text: 'Pink means this parcel has no usable land classification data yet.' };
+  }
+  if (colorKey === 'EXEMPT') {
+    return { tone: 'gray', text: 'Gray means this parcel is tagged as exempt.' };
+  }
+  return null;
 }
 
 function formatArea(value) {
@@ -511,35 +526,46 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
     const pinQuery = normalizePin(searchPin);
     if (!brgyQuery && !pinQuery) return;
 
-    const features = lotGeo.features.filter((feature) => {
+    const barangayMatches = lotGeo.features.filter((feature) => {
       const props = feature?.properties || {};
       const featureBarangay = normalizeBarangay(props.barangay);
-      const featurePin = normalizePin(props.pin || props.PIN);
-      const barangayMatches = !brgyQuery || featureBarangay === brgyQuery;
-      const pinMatches = !pinQuery || featurePin.includes(pinQuery);
-      return barangayMatches && pinMatches;
+      return !brgyQuery || featureBarangay === brgyQuery;
     });
 
-    if (!features.length) return;
-
     const map = geoRef.current._map;
-    const bounds = L.geoJSON({
-      type: 'FeatureCollection',
-      features,
-    }).getBounds();
 
     if (pinQuery) {
-      const matchedLot = features[0]?.properties || null;
-      if (matchedLot) {
-        setSelectedLot(matchedLot);
-      }
+      const exactMatch = barangayMatches.find((feature) => {
+        const featurePin = normalizePin(feature?.properties?.pin || feature?.properties?.PIN);
+        const lotPart = featurePin.split('-').pop() || featurePin;
+        return featurePin === pinQuery || lotPart === pinQuery;
+      });
+
+      const partialMatch = barangayMatches.find((feature) => {
+        const featurePin = normalizePin(feature?.properties?.pin || feature?.properties?.PIN);
+        const lotPart = featurePin.split('-').pop() || featurePin;
+        return featurePin.startsWith(pinQuery) || featurePin.includes(pinQuery) || lotPart.startsWith(pinQuery);
+      });
+
+      const matchedFeature = exactMatch || partialMatch || null;
+      if (!matchedFeature) return;
+
+      setSelectedLot(matchedFeature.properties || null);
+
+      const bounds = L.geoJSON(matchedFeature).getBounds();
       if (bounds?.isValid?.()) {
         map.flyToBounds(bounds, { padding: [80, 80], duration: 1.2, maxZoom: 18 });
       }
       return;
     }
 
+    if (!barangayMatches.length) return;
+
     setSelectedLot(null);
+    const bounds = L.geoJSON({
+      type: 'FeatureCollection',
+      features: barangayMatches,
+    }).getBounds();
     if (bounds?.isValid?.()) {
       map.flyToBounds(bounds, getMapFitOptions(map.getSize()));
     }
@@ -764,6 +790,7 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
   const areaCaption = currentAreaInfo?.isLot
     ? `Area Classification (${selectedLotBarangay} - Lot ${selectedLot?.pin})`
     : 'Area Classification (Municipal)';
+  const selectedLotMeaning = selectedLot ? getSpecialLotMeaning(selectedLot) : null;
 
   return (
     <div className="dash-root">
@@ -798,6 +825,21 @@ export default function MainDashboard({ searchBrgy = '', searchPin = '' }) {
                       ? ` Showing the recorded area values for Lot ${selectedLot.pin} in ${selectedLotBarangay}.`
                       : ' Showing the total aggregate area for all properties.'}
                   </p>
+                  {selectedLotMeaning && (
+                    <div style={{
+                      marginBottom: '0.6rem',
+                      padding: '0.55rem 0.65rem',
+                      borderRadius: '0.65rem',
+                      background: selectedLotMeaning.tone === 'pink' ? '#fdf2f8' : '#f8fafc',
+                      border: `1px solid ${selectedLotMeaning.tone === 'pink' ? '#f9a8d4' : '#cbd5e1'}`,
+                      color: '#475569',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      lineHeight: 1.4
+                    }}>
+                      {selectedLotMeaning.text}
+                    </div>
+                  )}
                   <div className="dash-summary-grid">
                     <div className="dash-summary-pill" style={{ borderColor: MAIN_COLORS.agri }}>
                       <label style={{ color: MAIN_COLORS.agri }}>{selectedLot ? 'Area Agricultural' : 'Total Agricultural'}</label>

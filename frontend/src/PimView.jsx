@@ -14,39 +14,13 @@ const ALL_BARANGAYS = [
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
 
-const COMBO_MAP = {
-    'AGRI': { hex: '#22c55e', label: 'AGRICULTURE' },
-    'COMM': { hex: '#fbbf24', label: 'COMMERCIAL' },
-    'INDUSTRIAL': { hex: '#3b82f6', label: 'INDUSTRIAL' },
-    'RES': { hex: '#ef4444', label: 'RESIDENTIAL' },
-    'AGRI_RES': { hex: '#a855f7', label: 'AGRI + RES' },
-    'AGRI_COMM': { hex: '#a3e635', label: 'AGRI + COMM' },
-    'AGRI_INDUSTRIAL': { hex: '#06b6d4', label: 'AGRI + INDUSTRIAL' },
-    'COMM_RES': { hex: '#f97316', label: 'COMM + RES' },
-    'COMM_INDUSTRIAL': { hex: '#ec4899', label: 'COMM + INDUSTRIAL' },
-    'INDUSTRIAL_RES': { hex: '#94a3b8', label: 'INDUSTRIAL + RES' },
-    'AGRI_COMM_RES': { hex: '#92400e', label: 'AGRI + COMM + RES' },
-    'AGRI_COMM_INDUSTRIAL': { hex: '#0d9488', label: 'AGRI + COMM + INDUSTRIAL' },
-    'AGRI_INDUSTRIAL_RES': { hex: '#7f1d1d', label: 'AGRI + INDUSTRIAL + RES' },
-    'COMM_INDUSTRIAL_RES': { hex: '#eab308', label: 'COMM + INDUSTRIAL + RES' },
-    'AGRI_COMM_INDUSTRIAL_RES': { hex: '#000000', label: 'MULTIPLE CLASSIFICATION' },
+const TAX_MAP_CLASS_MAP = {
+    'WITH_DATA': { hex: '#3b82f6', label: 'WITH DATA' },
     'UNCLASSIFIED': { hex: '#ff00ff', label: 'UNCLASSIFIED / NO DATA' }
 };
 
-function getLotComboKey(props) {
-    const types = [];
-    const safeParse = (v) => {
-        if (!v) return 0;
-        if (typeof v === 'number') return v;
-        const match = String(v).replace(/,/g, '').match(/[-+]?\d*\.?\d+/);
-        return match ? parseFloat(match[0]) : 0;
-    };
-    if (safeParse(props.area_agri) > 0) types.push('AGRI');
-    if (safeParse(props.area_comml) > 0) types.push('COMM');
-    if (safeParse(props.area_indl) > 0) types.push('INDUSTRIAL');
-    if (safeParse(props.area_res) > 0) types.push('RES');
-    if (types.length === 0) return 'UNCLASSIFIED';
-    return types.sort().join('_');
+function getTaxMapStatus(props) {
+    return props?.tax_map_status || (props?.is_unclassified ? 'UNCLASSIFIED' : 'WITH_DATA');
 }
 
 export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchBrgy = '', searchPin = '' }) {
@@ -409,13 +383,27 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         return {
             ...activeGeoData,
             features: activeGeoData.features.filter(f => {
-                const key = getLotComboKey(f.properties);
-                return key.includes(filterClass);
+                const key = getTaxMapStatus(f.properties);
+                return key === filterClass;
             })
         };
     }, [activeGeoData, filterClass, activeLayerKey]);
 
-    const activeFeature = selectedLot || null;
+    const selectedBarangayFeature = useMemo(() => {
+        if (!selectedBarangay || !geoData?.features?.length) return null;
+        return geoData.features.find(feature =>
+            String(feature?.properties?.ADM4_EN || '').trim().toLowerCase() === String(selectedBarangay).trim().toLowerCase()
+        ) || null;
+    }, [geoData, selectedBarangay]);
+
+    const selectedSectionFeature = useMemo(() => {
+        if (selectedSection === null || !barangayGeoData?.features?.length) return null;
+        return barangayGeoData.features.find(feature => feature?.properties?.section_number === selectedSection) || null;
+    }, [barangayGeoData, selectedSection]);
+
+    const activeFeature = selectedLot || selectedSectionFeature || selectedBarangayFeature || null;
+    const selectedLotIsUnclassified = getTaxMapStatus(selectedLot?.properties) === 'UNCLASSIFIED';
+    const showClassificationCard = Boolean(selectedLot && (activeLayerKey.includes('section') || activeLayerKey === 'enlargement'));
 
     const handleRecenter = () => {
         if (!mapInstance) return;
@@ -618,49 +606,87 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
 
     return (
         <div className="pim-layout" style={{ height: '100%', display: 'flex', position: 'relative' }}>
-            {/* LEFT: Barangay Filter Panel */}
-            <div className="pim-filter-panel" style={{
+            {/* LEFT: Barangay Filter Panel + Classification Card */}
+            <div style={{
                 width: '24%',
                 maxWidth: '24rem',
-                background: '#fff',
-                padding: '0.9375rem',
-                borderRadius: '0.75rem',
-                boxShadow: '0 0.5rem 1.5rem rgba(15,23,42,0.18)',
-                overflowY: 'auto',
                 position: 'absolute',
                 top: '4.5rem',
                 left: '0.75rem',
                 bottom: '0.75rem',
                 zIndex: 950,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
                 transform: showBarangayPanel ? 'translateX(0)' : 'translateX(-110%)',
                 transition: 'transform 0.25s ease'
             }}>
-                <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '0.125rem solid #e2e8f0', paddingBottom: '0.625rem' }}>Barangays</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                    {filteredBarangayList.map(b => (
-                        <button
-                            key={b.name}
-                            onClick={() => {
-                                setSelectedBarangay(b.name);
-                                setSelectedSection(null);
-                                setSelectedLotPin(null);
-                            }}
-                            style={{
-                                textAlign: 'left', padding: '0.35rem 0.625rem', borderRadius: '0.375rem', border: '0.0625rem solid #e2e8f0',
-                                background: selectedBarangay === b.name ? '#a9dbfaff' : '#fff',
-                                borderColor: selectedBarangay === b.name ? '#3b82f6' : '#e2e8f0',
-                                cursor: 'pointer', opacity: b.has_data ? 1 : 0.5
-                            }}
-                        >
-                            <div style={{ fontWeight: 'bold', color: '#0f1d35', fontSize: '0.85rem', textTransform: 'uppercase' }}>{b.name}</div>
-                            {b.has_data ? (
-                                <div style={{ fontSize: '0.75rem', color: '#0f172a', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>{b.section_count} sections</div>
-                            ) : (
-                                <div style={{ fontSize: '0.75rem', color: '#ef4444', fontStyle: 'italic', textTransform: 'capitalize' }}>⚠ No data</div>
-                            )}
-                        </button>
-                    ))}
+                <div className="pim-filter-panel" style={{
+                    background: '#fff',
+                    padding: '0.9375rem',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 0.5rem 1.5rem rgba(15,23,42,0.18)',
+                    overflowY: 'auto',
+                    flex: 1,
+                    minHeight: 0
+                }}>
+                    <h3 style={{ marginTop: 0, color: '#0f1d35', borderBottom: '0.125rem solid #e2e8f0', paddingBottom: '0.625rem' }}>Barangays</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        {filteredBarangayList.map(b => (
+                            <button
+                                key={b.name}
+                                onClick={() => {
+                                    setSelectedBarangay(b.name);
+                                    setSelectedSection(null);
+                                    setSelectedLotPin(null);
+                                }}
+                                style={{
+                                    textAlign: 'left', padding: '0.35rem 0.625rem', borderRadius: '0.375rem', border: '0.0625rem solid #e2e8f0',
+                                    background: selectedBarangay === b.name ? '#a9dbfaff' : '#fff',
+                                    borderColor: selectedBarangay === b.name ? '#3b82f6' : '#e2e8f0',
+                                    cursor: 'pointer', opacity: b.has_data ? 1 : 0.5
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold', color: '#0f1d35', fontSize: '0.85rem', textTransform: 'uppercase' }}>{b.name}</div>
+                                {b.has_data ? (
+                                    <div style={{ fontSize: '0.75rem', color: '#0f172a', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>{b.section_count} sections</div>
+                                ) : (
+                                    <div style={{ fontSize: '0.75rem', color: '#ef4444', fontStyle: 'italic', textTransform: 'capitalize' }}>⚠ No data</div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {showClassificationCard && (
+                    <div className="pim-map-legend" style={{
+                        background: 'rgba(255, 255, 255, 0.97)',
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                    }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            CLASSIFICATION
+                            {filterClass && <button onClick={() => setFilterClass(null)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.6rem' }}>RESET</button>}
+                        </div>
+                        {Object.entries(TAX_MAP_CLASS_MAP).map(([key, cfg]) => (
+                            <div
+                                key={key}
+                                onClick={() => setFilterClass(key === filterClass ? null : key)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#475569', cursor: 'pointer',
+                                    opacity: filterClass && key !== filterClass ? 0.3 : 1,
+                                    background: filterClass === key ? '#f1f5f9' : 'transparent',
+                                    padding: '2px 4px', borderRadius: '4px'
+                                }}
+                            >
+                                <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: cfg.hex }} />
+                                {cfg.label}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* CENTER: Main Map View */}
@@ -708,45 +734,8 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                         showCustomControls={false}
                         onMapReady={setMapInstance}
                         layerKey={activeLayerKey + (filterClass || '')}
+                        selectionHighlight="yellow"
                     />
-
-                    {/* Classification Legend */}
-                    {(activeLayerKey.includes('section') || activeLayerKey === 'enlargement') && (
-                        <div className="pim-map-legend" style={{
-                            position: 'absolute',
-                            bottom: '1rem',
-                            left: '1rem',
-                            background: 'rgba(255, 255, 255, 0.95)',
-                            padding: '1rem',
-                            borderRadius: '0.75rem',
-                            zIndex: 1000,
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                            maxHeight: '60%',
-                            overflowY: 'auto',
-                            width: '200px'
-                        }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                CLASSIFICATION
-                                {filterClass && <button onClick={() => setFilterClass(null)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.6rem' }}>RESET</button>}
-                            </div>
-                            {Object.entries(COMBO_MAP).map(([key, cfg]) => (
-                                <div
-                                    key={key}
-                                    onClick={() => setFilterClass(key === filterClass ? null : key)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '0.65rem', fontWeight: 700, color: '#475569', cursor: 'pointer',
-                                        opacity: filterClass && !key.includes(filterClass) ? 0.3 : 1,
-                                        background: filterClass === key ? '#f1f5f9' : 'transparent',
-                                        padding: '2px 4px', borderRadius: '4px'
-                                    }}
-                                >
-                                    <span style={{ width: '12px', height: '12px', borderRadius: '3px', background: cfg.hex }} />
-                                    {cfg.label}
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </div>
             </div>
 
@@ -812,6 +801,14 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                             View All Attributes
                                         </button>
                                     </div>
+                                    {selectedLotIsUnclassified && (
+                                        <div className="lot-enlargement-box">
+                                            <p className="enlarge-text">This lot is unclassified / no data. Use the attributes button to inspect the raw lot data.</p>
+                                            {selectedLot?.properties?.has_enlargement && (
+                                                <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT DATA</button>
+                                            )}
+                                        </div>
+                                    )}
                                     <div className="lot-detail-field full"><label>BARANGAY</label><div className="lot-val-box">{selectedBarangay}</div></div>
                                     <div className="lot-detail-field full"><label>SECTION #</label><div className="lot-val-box">Section {selectedSection}</div></div>
                                     <div className="lot-detail-card full"><label>PIN</label><div className="lot-card-val highlight">{lotProp('pin') || 'N/A'}</div></div>
@@ -903,10 +900,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     )}
                                     <div className="lot-detail-card full highlight-tax"><label>TOTAL ASSESSED VALUE</label><div className="lot-card-val secondary">{formatMoney(lotProp('assessed_value') ?? lotProp('assessment_value') ?? computedTax?.totalAssessedValue)}</div></div>
                                     <div className="lot-detail-card full highlight-tax"><label>REAL PROPERTY TAX (RPT)</label><div className="lot-card-val secondary">{formatMoney(lotProp('rpt') ?? computedTax?.rpt)}</div></div>
-                                    {selectedLot?.properties?.has_enlargement && (
+                                    {selectedLot?.properties?.has_enlargement && !selectedLotIsUnclassified && (
                                         <div className="lot-enlargement-box">
                                             <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
-                                            <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT</button>
+                                            <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT DATA</button>
                                         </div>
                                     )}
                                 </div>

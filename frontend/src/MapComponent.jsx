@@ -7,7 +7,7 @@ import { Plus, Minus, Maximize, Locate } from 'lucide-react';
 const LGU_CENTER = [13.7937, 121.0478]; // San Pascual, Batangas center
 
 // Safer GeoJSON wrapper to catch errors during feature processing
-function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady, selectionHighlight = 'default' }) {
   const map = useMap()
   const geoJsonRef = useRef(null)
   const selectedFeatureRef = useRef(null)
@@ -217,6 +217,38 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     return getPin(feature) === currentPin;
   };
 
+  const getBaseFeatureColor = (feature) => {
+    const props = feature?.properties || {};
+    return props.color || props.section_color || '#3b82f6';
+  };
+
+  const getSelectionStyle = (feature) => {
+    const baseColor = getBaseFeatureColor(feature);
+    const yellowFill = '#fde047';
+
+    if (selectionHighlight === 'yellow') {
+      return {
+        weight: 6,
+        color: baseColor,
+        opacity: 1,
+        fillOpacity: 0.92,
+        fillColor: yellowFill,
+        className: 'selected-feature-pulse',
+        dashArray: ''
+      };
+    }
+
+    return {
+      weight: 4,
+      color: '#3b82f6',
+      opacity: 1,
+      fillOpacity: isCad ? 0.0 : 0.4,
+      fillColor: isCad ? 'transparent' : '#3b82f6',
+      className: 'selected-feature-pulse',
+      dashArray: ''
+    };
+  };
+
   const onEachFeature = (feature, layer) => {
     if (!feature) return;
     const props = feature.properties || {};
@@ -247,11 +279,15 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
     layer.on('mouseout', () => {
       if (!isStatic) {
         const isSel = isSelected(feature);
-        layer.setStyle({
-          weight: isSel ? 4 : 1.5,
-          color: isSel ? '#3b82f6' : (isCad ? '#ffffff' : '#ffffff'),
-          opacity: 1
-        });
+        if (isSel) {
+          layer.setStyle(getSelectionStyle(feature));
+        } else {
+          layer.setStyle({
+            weight: 1.5,
+            color: '#ffffff',
+            opacity: 1
+          });
+        }
       }
     });
 
@@ -277,17 +313,12 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       geoJsonRef.current.eachLayer((layer) => {
         const isSel = isSelected(layer.feature);
         if (isSel) {
-          layer.setStyle({
-            weight: 4,
-            color: '#3b82f6',
-            fillOpacity: isCad ? 0.0 : 0.4,
-            fillColor: isCad ? 'transparent' : '#3b82f6'
-          });
+          layer.setStyle(getSelectionStyle(layer.feature));
           if (layer.bringToFront) layer.bringToFront();
         }
       });
     }
-  }, [selectedFeature, selectedFeaturePin, isCad, isolated, legend])
+  }, [selectedFeature, selectedFeaturePin, isCad, isolated, legend, selectionHighlight])
 
   // Create a more robust key that DOES NOT include selection to avoid full re-mounts.
   // We only change the key when the foundational data or map type changes.
@@ -355,14 +386,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
             const isAnySelected = !!(selectedFeature || selectedFeaturePin);
 
             if (isSelected(feature)) {
-              return {
-                fillOpacity: isCad ? 0.0 : 0.4,
-                weight: 4,
-                color: isCad ? '#3b82f6' : '#3b82f6',
-                fillColor: isCad ? 'transparent' : '#3b82f6',
-                className: 'selected-feature-pulse',
-                dashArray: ''
-              };
+              return getSelectionStyle(feature);
             }
 
             if (isLot && isCad) {
@@ -416,7 +440,7 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
   )
 }
 
-export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady }) {
+export default function MapComponent({ geoData, error, onFeatureSelect, onEnlargementRequest, selectedFeature, selectedFeaturePin, selectedBarangay, isCad, isolated, legend, backgroundGeoData, layerKey, isStatic, isBackgroundInteractive = true, showCustomControls = true, onMapReady, selectionHighlight = 'default' }) {
   return (
     <div style={{ height: '100%', width: '100%', position: 'relative' }}>
       <MapContainer
@@ -442,6 +466,7 @@ export default function MapComponent({ geoData, error, onFeatureSelect, onEnlarg
           isBackgroundInteractive={isBackgroundInteractive}
           showCustomControls={showCustomControls}
           onMapReady={onMapReady}
+          selectionHighlight={selectionHighlight}
         />
       </MapContainer>
     </div>

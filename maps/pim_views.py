@@ -93,48 +93,81 @@ SECTION_COLORS = [
     '#65a30d', '#dc2626', '#0891b2', '#7c3aed', '#ca8a04',
 ]
 
-# Land-use classification colors for lots (strictly matching user legend)
-LOT_COLOR_MAP = {
-    'AGRI': '#22c55e',                     # Green
-    'COMM': '#fbbf24',                     # Orange/Amber
-    'INDUSTRIAL': '#3b82f6',                 # Blue
-    'RES': '#ef4444',                       # Red
-    'AGRI_RES': '#a855f7',                 # Purple
-    'AGRI_COMM': '#a3e635',                 # Lime
-    'AGRI_INDUSTRIAL': '#06b6d4',           # Cyan
-    'COMM_RES': '#f97316',                  # Burnt Orange
-    'COMM_INDUSTRIAL': '#ec4899',           # Pink
-    'INDUSTRIAL_RES': '#94a3b8',            # Blue-Grey
-    'AGRI_COMM_RES': '#92400e',             # Brown
-    'AGRI_COMM_INDUSTRIAL': '#0d9488',      # Teal
-    'AGRI_INDUSTRIAL_RES': '#7f1d1d',       # Maroon
-    'COMM_INDUSTRIAL_RES': '#eab308',       # Dark Yellow
-    'AGRI_COMM_INDUSTRIAL_RES': '#000000',  # Black (Multiple)
-    'UNCLASSIFIED': '#ff00ff'               # Magenta
+# Land-use classification colors for the dashboard and tax-map lots.
+DASHBOARD_LOT_COLOR_MAP = {
+    'AGRI': '#22c55e',
+    'COMM': '#fbbf24',
+    'INDUSTRIAL': '#3b82f6',
+    'RES': '#ef4444',
+    'EXEMPT': '#9ca3af',
+    'UNCLASSIFIED': '#ff00ff',
 }
 
-def _lot_combo_key_from_types(types):
-    if not types:
-        return 'UNCLASSIFIED'
-    if len(types) > 3:
-        return 'AGRI_COMM_INDUSTRIAL_RES'
-    return "_".join(sorted(types))
+TAX_MAP_LOT_COLOR_MAP = {
+    'WITH_DATA': '#3b82f6',
+    'UNCLASSIFIED': '#ff00ff',
+}
 
 
-def get_lot_color(props):
+def _has_positive_area(props, *keys):
+    return any(_safe_num(props.get(key)) > 0 for key in keys)
+
+
+def _primary_area_values(props):
+    return {
+        'AGRI': _safe_num(props.get('area_agri')),
+        'COMM': max(_safe_num(props.get('area_comml')), _safe_num(props.get('area_commml'))),
+        'INDUSTRIAL': max(_safe_num(props.get('area_indl')), _safe_num(props.get('area_ind'))),
+        'RES': _safe_num(props.get('area_res')),
+    }
+
+
+def _has_any_lot_data(props):
+    return (
+        any(val > 0 for val in _primary_area_values(props).values())
+        or _has_positive_area(props, 'area_exempt')
+        or _has_positive_area(props, 'area_rrw')
+    )
+
+
+def get_dashboard_lot_color_key(props):
     """
-    Computes a color based on the 4 primary classification areas.
-    Matches the logic used in the Dashboard.
+    Dashboard rule:
+    - Use only 6 colors.
+    - If multiple primary classes have values, use the class with the highest area.
+    - Exempt-only lots are gray.
+    - Lots with no usable class data are pink.
+    - RRW-only lots fall back to blue to keep them in the "with data" bucket.
     """
-    types = []
-    # Force float conversion and check for > 0
-    if _safe_num(props.get('area_agri')) > 0: types.append('AGRI')
-    if _safe_num(props.get('area_comml')) > 0: types.append('COMM')
-    if _safe_num(props.get('area_indl')) > 0: types.append('INDUSTRIAL')
-    if _safe_num(props.get('area_res')) > 0: types.append('RES')
-    
-    key = _lot_combo_key_from_types(types)
-    return LOT_COLOR_MAP.get(key, LOT_COLOR_MAP['UNCLASSIFIED'])
+    primary_values = _primary_area_values(props)
+    best_key = None
+    best_value = 0.0
+    for key, value in primary_values.items():
+        if value > best_value:
+            best_key = key
+            best_value = value
+
+    if best_key and best_value > 0:
+        return best_key
+    if _has_positive_area(props, 'area_exempt'):
+        return 'EXEMPT'
+    if _has_positive_area(props, 'area_rrw'):
+        return 'INDUSTRIAL'
+    return 'UNCLASSIFIED'
+
+
+def get_tax_map_lot_color_key(props):
+    return 'WITH_DATA' if _has_any_lot_data(props) else 'UNCLASSIFIED'
+
+
+def get_dashboard_lot_color(props):
+    key = get_dashboard_lot_color_key(props)
+    return key, DASHBOARD_LOT_COLOR_MAP.get(key, DASHBOARD_LOT_COLOR_MAP['UNCLASSIFIED'])
+
+
+def get_tax_map_lot_color(props):
+    key = get_tax_map_lot_color_key(props)
+    return key, TAX_MAP_LOT_COLOR_MAP.get(key, TAX_MAP_LOT_COLOR_MAP['UNCLASSIFIED'])
 
 
 def _get_assessment_class_keys(props: dict, barangay_name: str) -> list[str]:
@@ -290,12 +323,13 @@ def _safe_num(value):
         return 0.0
 
 
-def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, barangay_name=None, use_assessment_classification=False):
+def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, barangay_name=None, use_assessment_classification=False, color_mode='dashboard'):
     """
     Standardizes lot properties with enlargement overrides and adjustments.
     """
     # 1. Start with raw props, override with enlargement if provided
-    base_props = raw_props or {}
+    marker_source_props = raw_props or {}
+    base_props = marker_source_props
     if enlargement_properties:
         # Merge enlargement props on top of base props
         merged = base_props.copy()
@@ -319,13 +353,23 @@ def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, bar
             'res': 'RES',
         }
         assessed_types = [area_to_lot_key[k] for k in assessed_keys if k in area_to_lot_key]
-        combo_key = _lot_combo_key_from_types(assessed_types)
+        combo_key = assessed_types[0] if assessed_types else 'UNCLASSIFIED'
         props['assessment_class_keys'] = assessed_keys
         props['assessment_combo_key'] = combo_key
         props['is_assessed'] = combo_key != 'UNCLASSIFIED'
-        props['color'] = LOT_COLOR_MAP.get(combo_key, LOT_COLOR_MAP['UNCLASSIFIED'])
+        props['color'] = DASHBOARD_LOT_COLOR_MAP.get(combo_key, DASHBOARD_LOT_COLOR_MAP['UNCLASSIFIED'])
     else:
-        props['color'] = get_lot_color(props)
+        if color_mode == 'tax_map':
+            color_key, color = get_tax_map_lot_color(props)
+            props['tax_map_status'] = color_key
+            props['dashboard_color_key'] = get_dashboard_lot_color_key(props)
+        else:
+            color_key, color = get_dashboard_lot_color(props)
+            props['dashboard_color_key'] = color_key
+            props['tax_map_status'] = get_tax_map_lot_color_key(props)
+        props['is_unclassified'] = color_key == 'UNCLASSIFIED' or props.get('tax_map_status') == 'UNCLASSIFIED'
+        props['color_key'] = color_key
+        props['color'] = color
     
     # 5. Inject SMV unit values so the frontend can compute per-lot tax
     if barangay_name:
@@ -345,7 +389,7 @@ def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, bar
                     props['area_rrw'] = _safe_num(rrw_val)
 
     # 6. Marker for enlargement (always check raw base for "see enlargement")
-    props['has_enlargement'] = _has_enlargement_marker(base_props)
+    props['has_enlargement'] = _has_enlargement_marker(marker_source_props)
     
     return props
 
@@ -567,7 +611,7 @@ def pim_barangay_geojson(request, barangay_name):
                 {
                     'barangay': canonical_name,
                     'section_number': row['section_number'],
-                    'section_color': SECTION_COLORS[idx % len(SECTION_COLORS)],
+                    'section_color': '#3b82f6',
                 },
             )
         )
@@ -620,7 +664,8 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
             raw_props, 
             enlargement_properties=enlargement_map.get(pin_value),
             adj_rate=adj_map.get(pin_value),
-            barangay_name=canonical_name
+            barangay_name=canonical_name,
+            color_mode='tax_map',
         )
         
         props['barangay'] = canonical_name
@@ -679,7 +724,8 @@ def pim_barangay_lots_geojson(request, barangay_name):
             raw_props, 
             adj_rate=adj_map.get(pin_value),
             barangay_name=canonical_name,
-            use_assessment_classification=True
+            use_assessment_classification=False,
+            color_mode='tax_map',
         )
         props['barangay'] = canonical_name
         props['section_number'] = row.section_number
@@ -709,7 +755,7 @@ def pim_enlargement_geojson(request, barangay_name, section_number):
     features = []
     for row in lots_qs:
         raw_props = row.properties or {}
-        props = _prepare_lot_data(raw_props, barangay_name=canonical_name) # No enlargement of an enlargement
+        props = _prepare_lot_data(raw_props, barangay_name=canonical_name, color_mode='tax_map') # No enlargement of an enlargement
         props['barangay'] = canonical_name
         props['section_number'] = section_number
         features.append(_feature_from_geom(row.geom, props))

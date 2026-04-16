@@ -221,7 +221,8 @@ def dashboard_lots_geojson(request):
                 enlargement_properties=enlargement_map.get(pin),
                 adj_rate=adj_map.get(pin),
                 barangay_name=barangay,
-                use_assessment_classification=True,
+                use_assessment_classification=False,
+                color_mode='dashboard',
             )
 
             cleaned_props['barangay'] = barangay
