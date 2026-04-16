@@ -16,7 +16,7 @@ if (-not $OgrBin) {
         $OgrBin = Join-Path $env:OSGEO4W_ROOT "bin"
     } else {
         $possibleRoots = New-Object System.Collections.Generic.List[string]
-        @("C:\OSGeo4W", "C:\OSGeo4W64", "D:\OSGeo4W", "D:\OSGeo4W64").ForEach({ $possibleRoots.Add($_) })
+        @("A:\OSGeo4W", "A:\OSGeo4W64", "A:\QGIS", "C:\OSGeo4W", "C:\OSGeo4W64", "D:\OSGeo4W", "D:\OSGeo4W64").ForEach({ $possibleRoots.Add($_) })
         
         # Add QGIS installations from Program Files
         $progFiles = @($env:ProgramFiles, ${env:ProgramFiles(x86)})
@@ -158,21 +158,21 @@ Invoke-Psql "TRUNCATE cad_maps, pim_barangay_boundaries, pim_sections, pim_enlar
 $cadDir = Join-Path $ProjectRoot "maps\static\CAD"
 $pimDir = Join-Path $ProjectRoot "maps\static\PIM"
 
-Write-Host "Importing CAD files..."
-Get-ChildItem $cadDir -Filter *.gpkg -File | ForEach-Object {
-    $file = $_.FullName
-    $source = $_.Name
-    $barangay = $_.BaseName
-    Import-OneFile $file
+Write-Host "Importing CAD index map..."
+$indexMapPath = Join-Path $cadDir "BarangayBoundaryIndexMap.gpkg"
+if (Test-Path $indexMapPath) {
+    $source = "BarangayBoundaryIndexMap.gpkg"
+    Import-OneFile $indexMapPath
 
-    $barangaySql = Escape-SqlLiteral $barangay
     $sourceSql = Escape-SqlLiteral $source
     Invoke-Psql @"
 INSERT INTO cad_maps (barangay_name, source_file, properties, geom)
-SELECT '$barangaySql', '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
+SELECT "Barangay", '$sourceSql', COALESCE(to_jsonb(t) - 'geom' - 'id' - 'fid', '{}'::jsonb), ST_Multi(t.geom)
 FROM tmp_import t
 WHERE t.geom IS NOT NULL;
 "@
+} else {
+    Write-Warning "BarangayBoundaryIndexMap.gpkg not found in $cadDir. Skipping CAD import."
 }
 
 Write-Host "Importing PIM barangay boundary files..."

@@ -1,7 +1,7 @@
 import geopandas as gpd
 import os
 
-db_path = 'maps/static/CAD/sanpascual.gpkg'
+db_path = 'maps/static/CAD/BarangayBoundaryIndexMap.gpkg'
 
 if not os.path.exists(db_path):
     print(f"File not found: {db_path}")

@@ -19,6 +19,8 @@ BARANGAY_NAME_MAP = {
     'sto nino': 'Sto. Nino',
     'sto niño': 'Sto. Nino',
     'sto. niño': 'Sto. Nino',
+    'sto nio': 'Sto. Nino',
+    'sto. nio': 'Sto. Nino',
     'santo nino': 'Sto. Nino',
     'santo niño': 'Sto. Nino',
     'ilat': 'Ilat North',
