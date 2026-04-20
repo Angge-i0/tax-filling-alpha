@@ -28,6 +28,7 @@ BARANGAY_VARIANTS = {
     'Sto. Nino': ['Sto. Nino', 'Sto Nino', 'Sto Niño', 'Sto. Niño', 'Santo Nino', 'Santo Niño'],
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
+    'Balimbing': ['Balimbing', 'Balimbing New'],
     'Poblacion': ['Poblacion'],
     'Poblacion 1': ['Poblacion 1'],
     'Poblacion 2': ['Poblacion 2'],
