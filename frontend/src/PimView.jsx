@@ -289,8 +289,52 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     useEffect(() => {
         if (!selectedLot?.properties) return;
         const saved = selectedLot.properties.adjustment_rate;
+
+        // Quick check if the lot is considered RRW to avoid defaulting Standard (1.0)
+        let hasRrw = false;
+        const lotProp = (key) => {
+            if (!key) return undefined;
+            if (selectedLot.properties[key] !== undefined) return selectedLot.properties[key];
+            const lowerKey = String(key).toLowerCase();
+            const matchKey = Object.keys(selectedLot.properties).find(k => String(k).toLowerCase() === lowerKey);
+            return matchKey ? selectedLot.properties[matchKey] : undefined;
+        };
+        const getNumberProp = (keys) => {
+            for (const key of keys) {
+                const val = lotProp(key);
+                if (val !== undefined && val !== null && val !== '') {
+                    if (typeof val === 'number') return val;
+                    const cleanVal = String(val).replace(/,/g, '').trim();
+                    const match = cleanVal.match(/[-+]?\d*\.?\d+/);
+                    if (match) {
+                        const num = parseFloat(match[0]);
+                        if (!isNaN(num)) return num;
+                    }
+                }
+            }
+            return 0;
+        };
+        const areaRrw = getNumberProp(['area_rrw']);
+        if (areaRrw > 0) {
+            hasRrw = true;
+        } else {
+            const genericArea = getNumberProp(['area', 'land_area', 'lot_area']);
+            const landUse = String(lotProp('land_use') || lotProp('landuse') || lotProp('classification') || '').toLowerCase();
+            let totalClassArea = 0;
+            totalClassArea += getNumberProp(['area_res', 'area_resi', 'area_residential']);
+            totalClassArea += getNumberProp(['area_agri', 'area_agriculture', 'area_agricultural']);
+            totalClassArea += getNumberProp(['area_comml', 'area_comm', 'area_commercial']);
+            totalClassArea += getNumberProp(['area_indl', 'area_ind', 'area_industrial']);
+            totalClassArea += getNumberProp(['area_exempt']);
+            if (totalClassArea === 0 && genericArea > 0 && landUse.includes('rrw')) {
+                hasRrw = true;
+            }
+        }
+
         if (saved === 0.5 || saved === 0.75 || saved === 1.0) {
             setRefinementLevel(saved);
+        } else if (hasRrw) {
+            setRefinementLevel(null);
         } else {
             setRefinementLevel(1.0);
         }
