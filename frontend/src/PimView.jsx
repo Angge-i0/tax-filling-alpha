@@ -254,18 +254,37 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     const getFeaturePin = (feature) => normalizePin(feature?.properties?.pin || feature?.properties?.PIN);
 
     const selectedLot = useMemo(() => {
-        if (!selectedLotPin || !lotGeoData?.features?.length) return null;
-        return lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin) || null;
-    }, [selectedLotPin, lotGeoData]);
+        if (!selectedLotPin) return null;
+        let found = null;
+        if (lotGeoData?.features?.length) {
+            found = lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin);
+        }
+        if (!found && enlargementData?.features?.length) {
+            found = enlargementData.features.find(f => getFeaturePin(f) === selectedLotPin);
+        }
+        return found || null;
+    }, [selectedLotPin, lotGeoData, enlargementData]);
 
     const sortedLotFeatures = useMemo(() => {
-        if (!lotGeoData?.features) return [];
-        return [...lotGeoData.features].sort((a, b) => {
+        const features = [];
+        if (lotGeoData?.features) {
+            features.push(...lotGeoData.features);
+        }
+        if (showEnlargementMap && enlargementData?.features) {
+            const existingPins = new Set(features.map(f => getFeaturePin(f)));
+            for (const f of enlargementData.features) {
+                const pin = getFeaturePin(f);
+                if (pin && !existingPins.has(pin)) {
+                    features.push(f);
+                }
+            }
+        }
+        return features.sort((a, b) => {
             const valA = String(a.properties.pin || '').split('-').pop() || '';
             const valB = String(b.properties.pin || '').split('-').pop() || '';
             return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
         });
-    }, [lotGeoData]);
+    }, [lotGeoData, enlargementData, showEnlargementMap]);
 
     useEffect(() => {
         if (!selectedLot?.properties) return;
@@ -523,13 +542,22 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
             if (!acc) return cls;
             return cls.area > acc.area ? cls : acc;
         }, null);
-        const rrwAssessmentLevel = primaryClass ? primaryClass.assessmentLevel : 0;
+        
+        // Find a fallback class that at least provides a unit value in attributes
+        const classWithUnitValue = classes.find(c => getNumberProp(c.unitKeys) > 0 && !['rrw', 'exempt'].includes(c.key));
+        const rrwAssessmentLevel = primaryClass ? primaryClass.assessmentLevel : (classWithUnitValue ? classWithUnitValue.assessmentLevel : 0);
 
         const computed = perClass
             .map(cls => {
                 if (cls.area <= 0) return null;
                 let unitValue = getNumberProp(cls.unitKeys || []);
                 if (unitValue <= 0 && genericUnit > 0) unitValue = genericUnit;
+                
+                // Allow RRW to inherit unit value from a fallback class (like residential) if it lacks its own
+                if (cls.key === 'rrw' && unitValue <= 0 && classWithUnitValue) {
+                    unitValue = getNumberProp(classWithUnitValue.unitKeys);
+                }
+                
                 const adjustment = cls.key === 'rrw' ? 0.20 : baseAdjustment;
                 const marketValue = cls.area * unitValue * adjustment;
                 const assessmentLevel = cls.key === 'rrw' ? rrwAssessmentLevel : cls.assessmentLevel;
@@ -765,7 +793,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
 
                 {selectedSection !== null ? (
                     <>
-                        {selectedLot && lotGeoData?.features ? (
+                        {selectedLot && (lotGeoData?.features || enlargementData?.features) ? (
                             <div className="lot-details">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9375rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
                                     <h3 style={{ margin: 0, color: '#0f1d35' }}>Lot Details</h3>
@@ -896,6 +924,11 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                                 {adjustmentStatus === 'saving' && 'Saving adjustment...'}
                                                 {adjustmentStatus === 'saved' && 'Saved.'}
                                                 {adjustmentStatus === 'error' && 'Save failed. Check backend/migrations.'}
+                                            </div>
+                                        )}
+                                        {computedTax?.perClass?.some(c => c.key === 'rrw') && (
+                                            <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: '#0f315e', fontStyle: 'italic', background: '#f8fafc', padding: '0.4rem 0.6rem', borderRadius: '0.25rem', borderLeft: '3px solid #cbd5e1' }}>
+                                                * Note: Computations for RRW areas override this selection and strictly default to a 0.20 adjustment modifier.
                                             </div>
                                         )}
                                     </div>
