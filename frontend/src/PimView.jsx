@@ -9,7 +9,7 @@ const ALL_BARANGAYS = [
     'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
     'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
     'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
-    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4',
+    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
     'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];

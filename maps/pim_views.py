@@ -11,6 +11,9 @@ import math
 import re
 import sqlite3
 import os
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import mapping
 from pathlib import Path
 from django.db.models import Count, Min, Q
 from django.http import JsonResponse
@@ -29,11 +32,7 @@ BARANGAY_VARIANTS = {
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
     'Balimbing': ['Balimbing', 'Balimbing New'],
-    'Poblacion': ['Poblacion'],
-    'Poblacion 1': ['Poblacion 1'],
-    'Poblacion 2': ['Poblacion 2'],
-    'Poblacion 3': ['Poblacion 3'],
-    'Poblacion 4': ['Poblacion 4'],
+    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
 }
 
 # Column name normalisation for frontend consistency.
@@ -85,6 +84,9 @@ COLUMN_MAP = {
     'lot no.': 'lot_no',
     'lot no': 'lot_no',
     'lot_no': 'lot_no',
+    'lot number': 'lot_no',
+    'type of land use': 'land_use',
+    'address of owner': 'address',
     'section': 'section',
     'barangay': 'barangay',
 }
@@ -696,14 +698,98 @@ def pim_section_lots_geojson(request, barangay_name, section_number):
     return JsonResponse(geojson)
 
 
+def _get_barangay_parcels_file(barangay_name):
+    base_dir = Path(settings.BASE_DIR) / 'maps' / 'static' / 'CAD' / 'Barangay by Parcels'
+    if not base_dir.exists():
+        return None
+    
+    # Try exact match
+    p = base_dir / f"{barangay_name}.gpkg"
+    if p.exists(): return p
+    
+    # Case-insensitive/slugified search
+    requested_slug = re.sub(r'[^a-z0-9]+', '', (barangay_name or '').lower())
+    for f in base_dir.glob('*.gpkg'):
+        f_slug = re.sub(r'[^a-z0-9]+', '', f.stem.lower())
+        if f_slug == requested_slug:
+            return f
+            
+    # Variant-based search
+    for v in _barangay_variants(barangay_name):
+        v_slug = re.sub(r'[^a-z0-9]+', '', v.lower())
+        for f in base_dir.glob('*.gpkg'):
+            f_slug = re.sub(r'[^a-z0-9]+', '', f.stem.lower())
+            if f_slug == v_slug:
+                return f
+    return None
+
+
 @api_login_required
 @require_http_methods(["GET"])
 def pim_barangay_lots_geojson(request, barangay_name):
     """
     Returns ALL lots for a given barangay (across all sections).
     Used for overlaying lots on the Cadastral Map.
+    Now prioritises GPKG source from 'Barangay by Parcels'.
     """
-    lots_qs, canonical_name = _filter_by_barangay(PimSection.objects, barangay_name)
+    canonical_name = _canonical_barangay_name(barangay_name)
+    gpkg_path = _get_barangay_parcels_file(canonical_name)
+
+    # 1. Try to load from GPKG first
+    if gpkg_path:
+        try:
+            gdf = gpd.read_file(str(gpkg_path), engine='pyogrio')
+            if gdf.crs and gdf.crs.to_epsg() != 4326:
+                gdf = gdf.to_crs(epsg=4326)
+
+            features = []
+            for _, row in gdf.iterrows():
+                raw_props = row.drop('geometry').to_dict()
+                # Clean NaNs for JSON
+                for k, v in raw_props.items():
+                    if pd.isna(v): raw_props[k] = None
+                
+                # Normalise and prepare props
+                props = _prepare_lot_data(
+                    raw_props, 
+                    barangay_name=canonical_name,
+                    use_assessment_classification=False,
+                    color_mode='tax_map'
+                )
+                
+                # Fallback mapping for "Lot Number" to "pin" if needed
+                if not props.get('pin') and raw_props.get('Lot Number'):
+                    props['pin'] = str(raw_props['Lot Number'])
+                    props['PIN'] = props['pin']
+                if not props.get('lot_no') and raw_props.get('Lot Number'):
+                    props['lot_no'] = str(raw_props['Lot Number'])
+
+                props['barangay'] = canonical_name
+                
+                geom = row['geometry']
+                if geom is None: continue
+                
+                features.append({
+                    'type': 'Feature',
+                    'properties': props,
+                    'geometry': mapping(geom)
+                })
+
+            return JsonResponse({
+                'type': 'FeatureCollection',
+                'features': features,
+                'metadata': {
+                    'barangay': canonical_name,
+                    'lot_count': len(features),
+                    'source': 'gpkg'
+                }
+            })
+        except Exception as e:
+            # On error, we allow fallback to DB
+            print(f"GPKG load error for {barangay_name}: {e}")
+
+    # 2. Fallback to PostGIS database
+    lots_qs, _ = _filter_by_barangay(PimSection.objects, barangay_name)
     lots_qs = lots_qs.order_by('section_number', 'id')
 
     if not lots_qs.exists():
@@ -724,7 +810,6 @@ def pim_barangay_lots_geojson(request, barangay_name):
         raw_props = row.properties or {}
         pin_value = str(raw_props.get('pin') or raw_props.get('PIN') or '').strip()
         
-        # Consistent preparation
         props = _prepare_lot_data(
             raw_props, 
             adj_rate=adj_map.get(pin_value),
@@ -737,15 +822,15 @@ def pim_barangay_lots_geojson(request, barangay_name):
         
         features.append(_feature_from_geom(row.geom, props))
 
-    geojson = {
+    return JsonResponse({
         'type': 'FeatureCollection',
         'features': features,
         'metadata': {
             'barangay': canonical_name,
             'lot_count': len(features),
+            'source': 'database'
         },
-    }
-    return JsonResponse(geojson)
+    })
 
 
 @api_login_required

@@ -25,10 +25,11 @@ BARANGAY_NAME_MAP = {
     'santo niño': 'Sto. Nino',
     'ilat': 'Ilat North',
     'natunuan': 'Natunuan South',
-    'poblacion 1': 'Poblacion 1',
-    'poblacion 2': 'Poblacion 2',
-    'poblacion 3': 'Poblacion 3',
-    'poblacion 4': 'Poblacion 4',
+    'poblacion': 'Poblacion',
+    'poblacion 1': 'Poblacion',
+    'poblacion 2': 'Poblacion',
+    'poblacion 3': 'Poblacion',
+    'poblacion 4': 'Poblacion',
 }
 
 
