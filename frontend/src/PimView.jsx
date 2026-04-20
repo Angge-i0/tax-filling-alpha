@@ -831,7 +831,11 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     </div>
                                     {selectedLotIsUnclassified && (
                                         <div className="lot-enlargement-box">
-                                            <p className="enlarge-text">This lot is unclassified / no data. Use the attributes button to inspect the raw lot data.</p>
+                                            <p className="enlarge-text">
+                                                {selectedLot?.properties?.has_enlargement
+                                                    ? 'This lot is unclassified / no data, or with enlargement data. To see enlargement details, click see enlargement button.'
+                                                    : 'This lot is unclassified / no data. Use the attributes button to inspect the raw lot data.'}
+                                            </p>
                                             {selectedLot?.properties?.has_enlargement && (
                                                 <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT DATA</button>
                                             )}
@@ -963,7 +967,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     </div>
                                     {selectedLot?.properties?.has_enlargement && !selectedLotIsUnclassified && (
                                         <div className="lot-enlargement-box">
-                                            <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>
+                                            <p className="enlarge-text">This lot is unclassified / no data, or with enlargement data. To see enlargement details, click see enlargement button.</p>
                                             <button onClick={handleLoadEnlargement} className="enlarge-btn">SEE ENLARGEMENT DATA</button>
                                         </div>
                                     )}
