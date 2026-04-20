@@ -32,7 +32,11 @@ BARANGAY_VARIANTS = {
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
     'Balimbing': ['Balimbing', 'Balimbing New'],
-    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
+    'Poblacion': ['Poblacion'],
+    'Poblacion 1': ['Poblacion 1'],
+    'Poblacion 2': ['Poblacion 2'],
+    'Poblacion 3': ['Poblacion 3'],
+    'Poblacion 4': ['Poblacion 4'],
 }
 
 # Column name normalisation for frontend consistency.
