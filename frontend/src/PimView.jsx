@@ -780,11 +780,6 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                         <button onClick={() => setShowDetailsPanel(v => !v)} style={{ background: '#a9dbfaff', color: '#0f172a', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>
                             {showDetailsPanel ? 'Hide Details' : 'Show Details'}
                         </button>
-                        {showEnlargementMap && (
-                            <button onClick={() => setShowEnlargementMap(false)} style={{ background: '#a9dbfaff', color: '#0f172a', border: '0.0625rem solid #a9dbfaff', padding: '0.375rem 0.75rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem' }}>
-                                Close Enlargement
-                            </button>
-                        )}
                     </div>
                 </div>
 
@@ -842,13 +837,21 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.9375rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
                                     <h3 style={{ margin: 0, color: '#0f1d35' }}>Lot Details</h3>
                                     <button
-                                        onClick={() => setSelectedLotPin(null)}
+                                        onClick={() => {
+                                            if (showEnlargementMap) {
+                                                setShowEnlargementMap(false);
+                                            } else {
+                                                setSelectedLotPin(null);
+                                            }
+                                        }}
                                         style={{
-                                            background: '#a9dbfaff', color: '#0f172a', border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
+                                            background: showEnlargementMap ? '#fee2e2' : '#a9dbfaff', 
+                                            color: showEnlargementMap ? '#991b1b' : '#0f172a', 
+                                            border: 'none', padding: '0.45rem 1rem', borderRadius: '0.375rem',
                                             cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'normal', textTransform: 'capitalize', letterSpacing: '0.03rem'
                                         }}
                                     >
-                                        Back to Lots
+                                        {showEnlargementMap ? 'Close Enlargement' : 'Back to Lots'}
                                     </button>
                                 </div>
                                 <div className="lot-details-grid">
