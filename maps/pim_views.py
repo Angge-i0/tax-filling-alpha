@@ -28,7 +28,11 @@ BARANGAY_VARIANTS = {
     'Sto. Nino': ['Sto. Nino', 'Sto Nino', 'Sto Niño', 'Sto. Niño', 'Santo Nino', 'Santo Niño'],
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
-    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
+    'Poblacion': ['Poblacion'],
+    'Poblacion 1': ['Poblacion 1'],
+    'Poblacion 2': ['Poblacion 2'],
+    'Poblacion 3': ['Poblacion 3'],
+    'Poblacion 4': ['Poblacion 4'],
 }
 
 # Column name normalisation for frontend consistency.
@@ -828,11 +832,11 @@ def pim_lot_adjustment(request):
 
     if not pin:
         return JsonResponse({'error': 'pin is required'}, status=400)
-    if rate not in (0.5, 0.75):
-        return JsonResponse({'error': 'adjustment_rate must be 0.5 or 0.75'}, status=400)
+    if rate not in (0.5, 0.75, 1.0):
+        return JsonResponse({'error': 'adjustment_rate must be 0.5, 0.75 or 1.0'}, status=400)
 
     prev = LotAdjustment.objects.filter(pin=pin).first()
-    old_rate = float(prev.adjustment_rate) if prev else 0.75
+    old_rate = float(prev.adjustment_rate) if prev else 1.0
 
     obj, _ = LotAdjustment.objects.update_or_create(
         pin=pin,

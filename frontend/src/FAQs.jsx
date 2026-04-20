@@ -8,7 +8,7 @@ const FAQ_DATA = [
     },
     {
         q: "How many barangays are in the municipality of San Pascual?",
-        a: "San Pascual, Batangas has 29 barangays: Alalum, Antipolo, Balimbing, Banaba, Bayanan, Danglayan, Del Pilar, Gelerang Kawayan, Ilat North, Ilat South, Kaingin, Laurel, Malaking Pook, Mataas na Lupa, Natunuan North, Natunuan South, Padre Castillo, Palsahingin, Pila, Poblacion, Pook ni Banal, Pook ni Kapitan, Resplandor, Sambat, San Antonio, San Mariano, San Mateo, Santa Elena, and Santo Niño."
+        a: "San Pascual, Batangas has 32 barangays: Alalum, Antipolo, Balimbing, Banaba, Bayanan, Danglayan, Del Pilar, Gelerang Kawayan, Ilat North, Ilat South, Kaingin, Laurel, Malaking Pook, Mataas na Lupa, Natunuan North, Natunuan South, Padre Castillo, Palsahingin, Pila, Poblacion 1, Poblacion 2, Poblacion 3, Poblacion 4, Pook ni Banal, Pook ni Kapitan, Resplandor, Sambat, San Antonio, San Mariano, San Mateo, Santa Elena, and Santo Niño."
     },
     {
         q: 'What is a Section in the E-TaxMap?',
