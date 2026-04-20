@@ -328,28 +328,6 @@ def dashboard_rpt_report(request):
         except Exception:
             pass
 
-    # If no cache yet, return a quick placeholder and generate in background
-    if not _RPT_REPORT_IN_PROGRESS:
-        _RPT_REPORT_IN_PROGRESS = True
-        try:
-            import threading
-            def _build_report_async():
-
-                try:
-                    dashboard_rpt_report.__wrapped__(request)  # compute and cache
-                finally:
-                    global _RPT_REPORT_IN_PROGRESS
-                    _RPT_REPORT_IN_PROGRESS = False
-            threading.Thread(target=_build_report_async, daemon=True).start()
-        except Exception:
-            _RPT_REPORT_IN_PROGRESS = False
-
-    return JsonResponse({
-        'as_of_year': timezone.now().year,
-        'rpt_by_class': [],
-        'assessment_table': { 'rows': [], 'totals': None },
-        'notes': 'Report is generating. Please refresh in a moment.',
-    })
 
     def compute_payload():
         # Default adjustment (no dirt-road attribute in dataset)
