@@ -32,7 +32,11 @@ BARANGAY_VARIANTS = {
     'Ilat North': ['Ilat North', 'Ilat'],
     'Natunuan South': ['Natunuan South', 'Natunuan'],
     'Balimbing': ['Balimbing', 'Balimbing New'],
-    'Poblacion': ['Poblacion', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4'],
+    'Poblacion': ['Poblacion'],
+    'Poblacion 1': ['Poblacion 1'],
+    'Poblacion 2': ['Poblacion 2'],
+    'Poblacion 3': ['Poblacion 3'],
+    'Poblacion 4': ['Poblacion 4'],
 }
 
 # Column name normalisation for frontend consistency.
@@ -408,18 +412,28 @@ def _prepare_lot_data(raw_props, enlargement_properties=None, adj_rate=None, bar
     if barangay_name:
         pin = str(props.get('pin') or props.get('PIN') or '').strip()
         if pin:
+            # Track if we found a unit value to potentially use for RRW fallback
+            found_unit_val = None
+            
             for class_key, meta in _RPT_CLASS_META.items():
-                area = _safe_num(props.get(meta['area_key']))
-                if area <= 0:
-                    continue
+                # We check the SMV for the PIN regardless of whether area_{class} is defined in props.
+                # This allows recovering classification and unit values missing from the primary section files.
                 smv = _load_smv_cache(barangay_name, class_key)
                 smv_entry = smv.get(pin, {})
                 unit_val = _safe_num(smv_entry.get('unit_value'))
+                
                 if unit_val > 0:
                     props[f'unit_value_{class_key}'] = unit_val
-                rrw_val = smv_entry.get('area_rrw')
-                if rrw_val is not None and _safe_num(rrw_val) > 0:
-                    props['area_rrw'] = _safe_num(rrw_val)
+                    found_unit_val = unit_val # Capture for RRW fallback
+                
+                smv_rrw = _safe_num(smv_entry.get('area_rrw'))
+                if smv_rrw > 0:
+                    props['area_rrw'] = smv_rrw
+            
+            # If we have RRW area but no RRW unit value, use the best available unit value from SMVs
+            if _safe_num(props.get('area_rrw')) > 0 and _safe_num(props.get('unit_value_rrw')) <= 0:
+                if found_unit_val:
+                    props['unit_value_rrw'] = found_unit_val
 
     # 6. Marker for enlargement (always check raw base for "see enlargement")
     props['has_enlargement'] = _has_enlargement_marker(marker_source_props)

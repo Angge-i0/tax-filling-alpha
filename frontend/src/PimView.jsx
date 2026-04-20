@@ -9,7 +9,8 @@ const ALL_BARANGAYS = [
     'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
     'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
     'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
-    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
+    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila',
+    'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4',
     'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
@@ -191,11 +192,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
         const pinQuery = (searchPin || '').trim();
         setSearchError(null);
 
-        // If Barangay is cleared, reset navigation state
+        // If Barangay query is empty, do nothing. 
+        // We don't reset navigation state because the user might be 
+        // navigating manually while the top search bar is empty.
         if (!brgyQuery) {
-            setSelectedBarangay(null);
-            setSelectedSection(null);
-            setSelectedLotPin(null);
             return;
         }
 
@@ -263,26 +263,34 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     const selectedLot = useMemo(() => {
         if (!selectedLotPin) return null;
         let found = null;
-        if (lotGeoData?.features?.length) {
-            found = lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin);
-        }
-        if (!found && enlargementData?.features?.length) {
+        if (showEnlargementMap && enlargementData?.features?.length) {
             found = enlargementData.features.find(f => getFeaturePin(f) === selectedLotPin);
         }
+        if (!found && lotGeoData?.features?.length) {
+            found = lotGeoData.features.find(f => getFeaturePin(f) === selectedLotPin);
+        }
         return found || null;
-    }, [selectedLotPin, lotGeoData, enlargementData]);
+    }, [selectedLotPin, lotGeoData, enlargementData, showEnlargementMap]);
 
     const sortedLotFeatures = useMemo(() => {
         const features = [];
-        if (lotGeoData?.features) {
-            features.push(...lotGeoData.features);
-        }
+        const existingPins = new Set();
+        
         if (showEnlargementMap && enlargementData?.features) {
-            const existingPins = new Set(features.map(f => getFeaturePin(f)));
             for (const f of enlargementData.features) {
+                const pin = getFeaturePin(f);
+                if (pin) {
+                    features.push(f);
+                    existingPins.add(pin);
+                }
+            }
+        }
+        if (lotGeoData?.features) {
+            for (const f of lotGeoData.features) {
                 const pin = getFeaturePin(f);
                 if (pin && !existingPins.has(pin)) {
                     features.push(f);
+                    existingPins.add(pin);
                 }
             }
         }
@@ -389,6 +397,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
 
     const handleLoadEnlargement = () => {
         loadEnlargementForSection(selectedSection, selectedLot);
+        setSelectedLotPin(null);
     };
 
     const handlePopupEnlargement = (feature) => {
@@ -1041,9 +1050,9 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                         Back to Sections
                                     </button>
                                 </div>
-                                {isLoadingSection ? <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>Loading lots...</div> : (lotGeoData?.features?.length > 0 ? (
+                                {isLoadingSection ? <div style={{ color: '#64748b', fontStyle: 'italic', textAlign: 'center', padding: '1.25rem' }}>Loading lots...</div> : (sortedLotFeatures.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3125rem' }}>
-                                        {lotGeoData.features.map((f, i) => (
+                                        {sortedLotFeatures.map((f, i) => (
                                             <button key={i} onClick={() => {
                                                 const pin = getFeaturePin(f);
                                                 if (pin) setSelectedLotPin(pin);

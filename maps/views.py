@@ -26,10 +26,10 @@ BARANGAY_NAME_MAP = {
     'ilat': 'Ilat North',
     'natunuan': 'Natunuan South',
     'poblacion': 'Poblacion',
-    'poblacion 1': 'Poblacion',
-    'poblacion 2': 'Poblacion',
-    'poblacion 3': 'Poblacion',
-    'poblacion 4': 'Poblacion',
+    'poblacion 1': 'Poblacion 1',
+    'poblacion 2': 'Poblacion 2',
+    'poblacion 3': 'Poblacion 3',
+    'poblacion 4': 'Poblacion 4',
 }
 
 
