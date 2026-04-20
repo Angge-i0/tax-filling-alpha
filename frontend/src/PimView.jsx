@@ -216,7 +216,14 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                             return res.json();
                         })
                         .then(data => {
-                            if (data.barangay && data.section_number !== undefined) {
+                            if (data.is_enlargement && !showEnlargementMap) {
+                                setSearchError(`Data is inside Enlargement`);
+                                if (bMatch.name !== selectedBarangay) {
+                                    setSelectedBarangay(bMatch.name);
+                                    setSelectedSection(null);
+                                }
+                                setSelectedLotPin(null);
+                            } else if (data.barangay && data.section_number !== undefined) {
                                 setSelectedBarangay(data.barangay);
                                 setSelectedSection(data.section_number);
                                 setSelectedLotPin(data.pin || pinQuery);
@@ -248,7 +255,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                 }
             }
         }
-    }, [searchBrgy, searchPin, barangayList]);
+    }, [searchBrgy, searchPin, barangayList, showEnlargementMap]);
 
     const normalizePin = (value) => (value ? String(value).trim() : '');
     const getFeaturePin = (feature) => normalizePin(feature?.properties?.pin || feature?.properties?.PIN);

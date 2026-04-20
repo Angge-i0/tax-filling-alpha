@@ -874,9 +874,18 @@ def pim_lot_search(request):
 
     if not lot:
         # Fallback to case-insensitive or partial match if exact fails
-        # Depending on DB, __icontains on JSON values might vary, 
-        # but for common cases this works:
         lot = qs.filter(Q(properties__pin__icontains=pin) | Q(properties__PIN__icontains=pin)).first()
+
+    is_enlargement = False
+    
+    if not lot:
+        # Check if the lot is only in PimEnlargement
+        en_qs, _ = _filter_by_barangay(PimEnlargement.objects, barangay_name)
+        lot = en_qs.filter(Q(properties__pin=pin) | Q(properties__PIN=pin)).first()
+        if not lot:
+            lot = en_qs.filter(Q(properties__pin__icontains=pin) | Q(properties__PIN__icontains=pin)).first()
+        if lot:
+            is_enlargement = True
 
     if not lot:
         return JsonResponse({'error': 'Lot not found in this barangay.'}, status=404)
@@ -885,4 +894,5 @@ def pim_lot_search(request):
         'barangay': canonical_name,
         'section_number': lot.section_number,
         'pin': lot.properties.get('pin') or lot.properties.get('PIN'),
+        'is_enlargement': is_enlargement,
     })
