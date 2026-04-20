@@ -526,10 +526,6 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
                     <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Barangay:</span>
                     <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.barangay || selectedBarangay || 'N/A'}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                    <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Section No.:</span>
-                    <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.section_number || selectedLotFeature.properties.section || 'N/A'}</span>
-                  </div>
                   {/* Keep PIN as a subtle foot note or hidden if truly not wanted, but usually it's helpful. I'll hide it for now as per minimal request. */}
                 </div>
               </div>
