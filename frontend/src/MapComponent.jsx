@@ -228,11 +228,11 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
 
     if (selectionHighlight === 'yellow') {
       return {
-        weight: 6,
-        color: baseColor,
+        weight: 8,
+        color: '#ffff00', // Bright pure yellow outline
         opacity: 1,
-        fillOpacity: 0.92,
-        fillColor: yellowFill,
+        fillOpacity: 1,
+        fillColor: '#ffff00', // Bright pure yellow fill
         className: 'selected-feature-pulse',
         dashArray: ''
       };
@@ -291,9 +291,12 @@ function MapContent({ geoData, error, onFeatureSelect, onEnlargementRequest, sel
       }
     });
 
-    // Tooltip - parcel labels show just the Lot Number part
+    // Tooltip - parcel labels show just the Lot Number part (stripped of "LOT" prefix)
     if (props.pin || props.PIN) {
-      const lotPart = pin.split('-').pop() || pin;
+      let lotPart = (pin.split('-').pop() || pin).replace(/LOT\s+/i, '');
+      if (props.is_unidentified) {
+        lotPart = 'N/A';
+      }
       layer.bindTooltip(`${lotPart}`, {
         permanent: true,
         direction: 'center',

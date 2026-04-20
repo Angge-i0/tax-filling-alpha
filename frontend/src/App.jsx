@@ -520,9 +520,9 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.9rem', color: '#1e293b' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Lot:</span>
-                    <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.pin || selectedLotFeature.properties.PIN || 'N/A'}</span>
+                    <span style={{ fontWeight: 700 }}>{(!selectedLotFeature.properties.is_unidentified && selectedLotFeature.properties.pin) ? String(selectedLotFeature.properties.pin).replace(/LOT\s+/i, '') : 'N/A'}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                     <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: '0.7rem', textTransform: 'uppercase', width: '80px', flexShrink: 0 }}>Barangay:</span>
                     <span style={{ fontWeight: 700 }}>{selectedLotFeature.properties.barangay || selectedBarangay || 'N/A'}</span>
                   </div>
@@ -544,6 +544,7 @@ function CadMap({ geoData, error, isStaff, searchBrgy = '', searchLot = '', onTi
               backgroundGeoData={selectedBarangay ? geoData : null}
               layerKey={selectedBarangay ? `cad-overlay-${selectedBarangay}` : 'cad-municipal-index'}
               isBackgroundInteractive={true}
+              selectionHighlight="yellow"
             />
           </div>
         </div>

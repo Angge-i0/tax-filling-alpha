@@ -2557,3 +2557,28 @@ body {
   transform: translateY(0);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
+/* Bright Yellow Selection Pulse */
+.selected-feature-pulse {
+  animation: yellowSelectPulse 1.5s infinite ease-in-out;
+  filter: drop-shadow(0 0 12px rgba(255, 255, 0, 0.9));
+  z-index: 1000;
+}
+
+@keyframes yellowSelectPulse {
+  0% {
+    fill-opacity: 0.8;
+    stroke-opacity: 0.8;
+    stroke-width: 8;
+  }
+  50% {
+    fill-opacity: 1;
+    stroke-opacity: 1;
+    stroke-width: 12;
+  }
+  100% {
+    fill-opacity: 0.8;
+    stroke-opacity: 0.8;
+    stroke-width: 8;
+  }
+}

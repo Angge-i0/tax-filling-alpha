@@ -110,6 +110,32 @@ DASHBOARD_LOT_COLOR_MAP = {
     'UNCLASSIFIED': '#ff00ff',
 }
 
+# Barangay colors consistent with MapComponent.jsx
+BARANGAY_COLORS = [
+    '#e11d48', '#d946ef', '#8b5cf6', '#a855f7', '#ec4899',
+    '#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444'
+]
+
+def _get_barangay_color(barangay_name):
+    """Returns the theme color for a barangay based on its index in the municipal list."""
+    all_brgys = [
+        'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
+        'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
+        'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North', 'Natunuan South',
+        'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion', 'Pook ni Banal',
+        'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio', 'San Mariano',
+        'San Mateo', 'Sta. Elena', 'Sto. Nino'
+    ]
+    try:
+        idx = all_brgys.index(barangay_name)
+        return BARANGAY_COLORS[idx % len(BARANGAY_COLORS)]
+    except ValueError:
+        requested_slug = re.sub(r'[^a-z0-9]+', '', (barangay_name or '').lower())
+        for i, b in enumerate(all_brgys):
+            if re.sub(r'[^a-z0-9]+', '', b.lower()) == requested_slug:
+                return BARANGAY_COLORS[i % len(BARANGAY_COLORS)]
+        return '#64748b' # Gray fallback
+
 TAX_MAP_LOT_COLOR_MAP = {
     'WITH_DATA': '#3b82f6',
     'UNCLASSIFIED': '#ff00ff',
@@ -736,18 +762,29 @@ def pim_barangay_lots_geojson(request, barangay_name):
     gpkg_path = _get_barangay_parcels_file(canonical_name)
 
     # 1. Try to load from GPKG first
-    if gpkg_path:
+    if (gpkg_path):
         try:
             gdf = gpd.read_file(str(gpkg_path), engine='pyogrio')
+            
+            # 1. Calculate Area fallback while still in projected (metric) CRS
+            if 'Area' not in gdf.columns:
+                gdf['Area'] = gdf.geometry.area
+            else:
+                gdf['Area'] = gdf['Area'].fillna(gdf.geometry.area)
+
+            # 2. Convert to 4326 for GeoJSON output
             if gdf.crs and gdf.crs.to_epsg() != 4326:
                 gdf = gdf.to_crs(epsg=4326)
 
+            # Determine color for this barangay
+            brgy_color = _get_barangay_color(canonical_name)
+
             features = []
-            for _, row in gdf.iterrows():
+            for idx, row in gdf.iterrows():
                 raw_props = row.drop('geometry').to_dict()
                 # Clean NaNs for JSON
                 for k, v in raw_props.items():
-                    if pd.isna(v): raw_props[k] = None
+                    if pd.isna(v): raw_props[k] = v = None
                 
                 # Normalise and prepare props
                 props = _prepare_lot_data(
@@ -757,23 +794,39 @@ def pim_barangay_lots_geojson(request, barangay_name):
                     color_mode='tax_map'
                 )
                 
-                # Fallback mapping for "Lot Number" to "pin" if needed
-                if not props.get('pin') and raw_props.get('Lot Number'):
-                    props['pin'] = str(raw_props['Lot Number'])
-                    props['PIN'] = props['pin']
-                if not props.get('lot_no') and raw_props.get('Lot Number'):
-                    props['lot_no'] = str(raw_props['Lot Number'])
+                # Use barangay-specific color for Cadastral Map
+                props['color'] = brgy_color
 
+                # Fallback mapping for "Lot Number" to "pin"
+                lot_num = raw_props.get('Lot Number')
+                has_lot_num = bool(lot_num and not pd.isna(lot_num))
+
+                if not has_lot_num:
+                    # For unidentified parcels, we use a placeholder pin to ensure selection works
+                    # but hide it in formatting. We use the index as a unique ID.
+                    props['pin'] = props['PIN'] = props['lot_no'] = f"UNIDENTIFIED-{idx}"
+                    props['is_unidentified'] = True
+                    props['area'] = None
+                else:
+                    if not props.get('pin'):
+                        props['pin'] = props['PIN'] = str(lot_num)
+                    if not props.get('lot_no'):
+                        props['lot_no'] = str(lot_num)
+                
                 props['barangay'] = canonical_name
                 
                 geom = row['geometry']
                 if geom is None: continue
                 
-                features.append({
-                    'type': 'Feature',
-                    'properties': props,
-                    'geometry': mapping(geom)
-                })
+                try:
+                    features.append({
+                        'type': 'Feature',
+                        'properties': props,
+                        'geometry': mapping(geom)
+                    })
+                except Exception as ex:
+                    print(f"Geometry mapping error for row {idx}: {ex}")
+                    continue
 
             return JsonResponse({
                 'type': 'FeatureCollection',
@@ -805,6 +858,7 @@ def pim_barangay_lots_geojson(request, barangay_name):
             pins.append(str(pin).strip())
     adj_map = {a.pin: float(a.adjustment_rate) for a in LotAdjustment.objects.filter(pin__in=pins)}
 
+    brgy_color = _get_barangay_color(canonical_name)
     features = []
     for row in lots_list:
         raw_props = row.properties or {}
@@ -819,6 +873,7 @@ def pim_barangay_lots_geojson(request, barangay_name):
         )
         props['barangay'] = canonical_name
         props['section_number'] = row.section_number
+        props['color'] = brgy_color
         
         features.append(_feature_from_geom(row.geom, props))
 
