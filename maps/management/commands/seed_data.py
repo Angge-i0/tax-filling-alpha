@@ -1,5 +1,5 @@
 """
-Seed the database with 29 San Pascual barangays, sample sections,
+Seed the database with 32 San Pascual barangays, sample sections,
 lots (with realistic mixed land-use), and auto-detected issues.
 """
 import random
@@ -17,8 +17,9 @@ BARANGAY_DATA = [
     ("Malaking Pook", "#9775fa"), ("Mataas na Lupa", "#cc5de8"),
     ("Natunuan North", "#5c7cfa"),("Natunuan South", "#f783ac"),
     ("Padre Castillo", "#38d9a9"),("Palsahingin", "#fd7e14"),
-    ("Pila", "#adb5bd"),          ("Poblacion", "#e03131"),
-    ("Pook ni Banal", "#2f9e44"), ("Pook ni Kapitan", "#f08c00"),
+    ("Pila", "#adb5bd"),          ("Poblacion 1", "#e03131"),
+    ("Poblacion 2", "#c92a2a"),   ("Poblacion 3", "#a61e1e"),
+    ("Poblacion 4", "#8b1818"),   ("Pook ni Banal", "#2f9e44"), ("Pook ni Kapitan", "#f08c00"),
     ("Resplandor", "#1971c2"),    ("Sambat", "#e8590c"),
     ("San Antonio", "#0ca678"),   ("San Mariano", "#66a80f"),
     ("San Mateo", "#3bc9db"),     ("Santa Elena", "#b197fc"),
@@ -52,7 +53,7 @@ LAST_NAMES = [
 
 
 class Command(BaseCommand):
-    help = "Seed 29 San Pascual barangays with sections, lots, and issues"
+    help = "Seed 32 San Pascual barangays with sections, lots, and issues"
 
     def handle(self, *args, **options):
         self.stdout.write("Clearing old data...")
@@ -112,11 +113,11 @@ class Command(BaseCommand):
         self.stdout.write("Detecting issues...")
         issues_created = 0
 
-        # Check if fewer than 29 barangays loaded
+        # Check if fewer than 32 barangays loaded
         brgy_count = Barangay.objects.count()
-        if brgy_count < 29:
+        if brgy_count < 32:
             Issue.objects.create(
-                description=f"System has only {brgy_count} of 29 barangays for PIM OVERVIEW."
+                description=f"System has only {brgy_count} of 32 barangays for PIM OVERVIEW."
             )
             issues_created += 1
 

@@ -25,10 +25,10 @@ BARANGAY_NAME_MAP = {
     'santo niño': 'Sto. Nino',
     'ilat': 'Ilat North',
     'natunuan': 'Natunuan South',
-    'poblacion 1': 'Poblacion',
-    'poblacion 2': 'Poblacion',
-    'poblacion 3': 'Poblacion',
-    'poblacion 4': 'Poblacion',
+    'poblacion 1': 'Poblacion 1',
+    'poblacion 2': 'Poblacion 2',
+    'poblacion 3': 'Poblacion 3',
+    'poblacion 4': 'Poblacion 4',
 }
 
 
@@ -353,7 +353,7 @@ def dashboard_rpt_report(request):
 
     def compute_payload():
         # Default adjustment (no dirt-road attribute in dataset)
-        default_adjustment = 0.75
+        default_adjustment = 1.0
         tax_rate = 0.02
 
         # Serve cached result when fresh
@@ -537,7 +537,7 @@ def build_rpt_report_cache():
     from .pim_views import _normalise_properties, _load_smv_cache, _canonical_barangay_name as pim_canonical_barangay_name
 
     # Reuse the report builder logic from dashboard_rpt_report
-    default_adjustment = 0.75
+    default_adjustment = 1.0
     tax_rate = 0.02
 
     class_meta = {

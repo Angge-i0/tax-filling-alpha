@@ -9,7 +9,7 @@ const ALL_BARANGAYS = [
     'Alalum', 'Antipolo', 'Balimbing', 'Banaba', 'Bayanan', 'Danglayan',
     'Del Pilar', 'Gelerang Kawayan', 'Ilat North', 'Ilat South', 'Kaingin',
     'Laurel', 'Malaking Pook', 'Mataas na Lupa', 'Natunuan North',
-    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion',
+    'Natunuan South', 'Padre Castillo', 'Palsahingin', 'Pila', 'Poblacion 1', 'Poblacion 2', 'Poblacion 3', 'Poblacion 4',
     'Pook ni Banal', 'Pook ni Kapitan', 'Resplandor', 'Sambat', 'San Antonio',
     'San Mariano', 'San Mateo', 'Sta. Elena', 'Sto. Nino'
 ];
@@ -41,7 +41,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     const [error, setError] = useState(null);
     const [showEnlargementMap, setShowEnlargementMap] = useState(false);
     const [searchError, setSearchError] = useState(null);
-    const [refinementLevel, setRefinementLevel] = useState(0.75);
+    const [refinementLevel, setRefinementLevel] = useState(1.0);
     const [adjustmentStatus, setAdjustmentStatus] = useState(null);
     const [showBarangayPanel, setShowBarangayPanel] = useState(true);
     const [showDetailsPanel, setShowDetailsPanel] = useState(true);
@@ -270,10 +270,10 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
     useEffect(() => {
         if (!selectedLot?.properties) return;
         const saved = selectedLot.properties.adjustment_rate;
-        if (saved === 0.5 || saved === 0.75) {
+        if (saved === 0.5 || saved === 0.75 || saved === 1.0) {
             setRefinementLevel(saved);
         } else {
-            setRefinementLevel(0.75);
+            setRefinementLevel(1.0);
         }
         setAdjustmentStatus(null);
     }, [selectedLot]);
@@ -452,7 +452,7 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
             return 0;
         };
 
-        const baseAdjustment = (refinementLevel === 0.5 || refinementLevel === 0.75) ? refinementLevel : 0.75;
+        const baseAdjustment = (refinementLevel === 0.5 || refinementLevel === 0.75 || refinementLevel === 1.0) ? refinementLevel : 1.0;
 
         const classes = [
             {
@@ -834,6 +834,25 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                     <div className="lot-detail-card full specialty"><label>Dirt Road Access (ADJUSTMENT)</label>
                                         <div className="adj-buttons">
                                             <button
+                                                className={refinementLevel === 1.0 ? 'active' : ''}
+                                                onClick={() => {
+                                                    setRefinementLevel(1.0);
+                                                    const pin = selectedLot?.properties?.pin || selectedLot?.properties?.PIN;
+                                                    if (pin) {
+                                                        setAdjustmentStatus('saving');
+                                                        applyLocalAdjustment(pin, 1.0);
+                                                        apiPost('/api/pim/lots/adjustment/', { pin, adjustment_rate: 1.0 })
+                                                            .then(() => {
+                                                                setAdjustmentStatus('saved');
+                                                                try { localStorage.setItem('rpt_report_dirty', String(Date.now())); } catch { }
+                                                            })
+                                                            .catch(() => setAdjustmentStatus('error'));
+                                                    }
+                                                }}
+                                            >
+                                                Standard (1.0)
+                                            </button>
+                                            <button
                                                 className={refinementLevel === 0.75 ? 'active' : ''}
                                                 onClick={() => {
                                                     setRefinementLevel(0.75);
@@ -881,25 +900,34 @@ export default function PimView({ isStaff, geoData, onHeaderTitleChange, searchB
                                         )}
                                     </div>
                                     {computedTax?.perClass?.length > 1 && (
-                                        <div className="lot-detail-card full">
-                                            <label>PER-CLASS COMPUTATION</label>
+                                        <div className="lot-detail-card full" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid #f1f5f9', background: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 400, color: '#334155', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'block' }}>PER-CLASS COMPUTATION</label>
                                             <div className="lot-card-val">
-                                                {computedTax.perClass.map(item => (
-                                                    <div key={item.key} style={{ marginBottom: '0.5rem' }}>
-                                                        <div style={{ fontWeight: 800 }}>{item.label}</div>
-                                                        <div>Market Value: {formatMoney(item.marketValue)}</div>
-                                                        <div>Assessed Value: {formatMoney(item.assessedValue)}</div>
-                                                        <div>Assessment Level: {(item.assessmentLevel * 100).toFixed(0)}%</div>
+                                                {computedTax.perClass.map((item, idx) => (
+                                                    <div key={item.key} style={{ marginBottom: idx === computedTax.perClass.length - 1 ? 0 : '1rem' }}>
+                                                        <div style={{ fontWeight: 700, color: '#0f315e', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{item.label}</div>
+                                                        <div style={{ color: '#0f315e', fontSize: '0.85rem', fontWeight: 600 }}>Market Value: {formatMoney(item.marketValue)}</div>
+                                                        <div style={{ color: '#0f315e', fontSize: '0.85rem', fontWeight: 600 }}>Assessed Value: {formatMoney(item.assessedValue)}</div>
+                                                        <div style={{ color: '#0f315e', fontSize: '0.85rem', fontWeight: 600 }}>Assessment Level: {(item.assessmentLevel * 100).toFixed(0)}%</div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
                                     {computedTax?.perClass?.length <= 1 && (
-                                        <div className="lot-detail-card full highlight-tax"><label>MARKET VALUE</label><div className="lot-card-val primary">{formatMoney(lotProp('market_value') ?? computedTax?.totalMarketValue)}</div></div>
+                                        <div className="lot-detail-card full highlight-tax" style={{ background: '#f4fbf7', border: 'none', borderLeft: '6px solid #10b981', borderRadius: '0.375rem', padding: '0.85rem 1rem' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 400, color: '#334155', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>MARKET VALUE</label>
+                                            <div className="lot-card-val primary" style={{ color: '#0f315e', fontSize: '1.4rem', fontWeight: 700 }}>{formatMoney(lotProp('market_value') ?? computedTax?.totalMarketValue)}</div>
+                                        </div>
                                     )}
-                                    <div className="lot-detail-card full highlight-tax"><label>TOTAL ASSESSED VALUE</label><div className="lot-card-val secondary">{formatMoney(lotProp('assessed_value') ?? lotProp('assessment_value') ?? computedTax?.totalAssessedValue)}</div></div>
-                                    <div className="lot-detail-card full highlight-tax"><label>REAL PROPERTY TAX (RPT)</label><div className="lot-card-val secondary">{formatMoney(lotProp('rpt') ?? computedTax?.rpt)}</div></div>
+                                    <div className="lot-detail-card full highlight-tax" style={{ background: '#f4fbf7', border: 'none', borderLeft: '6px solid #10b981', borderRadius: '0.375rem', padding: '0.85rem 1rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 400, color: '#334155', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>TOTAL ASSESSED VALUE</label>
+                                        <div className="lot-card-val secondary" style={{ color: '#0f315e', fontSize: '1.4rem', fontWeight: 700 }}>{formatMoney(lotProp('assessed_value') ?? lotProp('assessment_value') ?? computedTax?.totalAssessedValue)}</div>
+                                    </div>
+                                    <div className="lot-detail-card full highlight-tax" style={{ background: '#f4fbf7', border: 'none', borderLeft: '6px solid #10b981', borderRadius: '0.375rem', padding: '0.85rem 1rem' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 400, color: '#334155', textTransform: 'uppercase', marginBottom: '0.25rem', display: 'block' }}>REAL PROPERTY TAX (RPT)</label>
+                                        <div className="lot-card-val secondary" style={{ color: '#0f315e', fontSize: '1.4rem', fontWeight: 700 }}>{formatMoney(lotProp('rpt') ?? computedTax?.rpt)}</div>
+                                    </div>
                                     {selectedLot?.properties?.has_enlargement && !selectedLotIsUnclassified && (
                                         <div className="lot-enlargement-box">
                                             <p className="enlarge-text">Shape mismatch detected. Enlargement available.</p>

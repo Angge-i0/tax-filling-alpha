@@ -96,7 +96,7 @@ class Issue(models.Model):
 
 class LotAdjustment(models.Model):
     pin = models.CharField(max_length=50, unique=True)
-    adjustment_rate = models.DecimalField(max_digits=4, decimal_places=2, default=0.75)
+    adjustment_rate = models.DecimalField(max_digits=4, decimal_places=2, default=1.0)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
